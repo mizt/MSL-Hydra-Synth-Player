@@ -11,7 +11,7 @@ class App {
         dispatch_source_t timer;
         unsigned int *o0 = nullptr;
         
-        CGRect rect = CGRectMake(0,0,960,540);
+        CGRect rect = CGRectMake(0,0,1280,720);
         
     public:
         
