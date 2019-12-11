@@ -13,23 +13,83 @@ class HydraMetalLayer : public MetalLayer {
 		
 		id<MTLTexture> _o0;
 		id<MTLTexture> _o1;
-		id<MTLTexture> _o2;
-		id<MTLTexture> _o3;
+		id<MTLTexture> _s0;
+		id<MTLTexture> _s1;
 		
 		std::vector<id> _params;
+		std::vector<NSString *> _uniforms;
 		std::vector<NSMutableArray *> _uniform;
 
 		std::vector<id<MTLBuffer>> _argumentEncoderBuffer;
 
 		double _starttime;
 		
-		std::vector<NSString *> _uniforms;
-
-
 	public:
 		
-		id<MTLTexture> o0() { return this->_o0;  }
+		id<MTLTexture> o0() { return this->_o0; }
+		id<MTLTexture> o1() { return this->_o1;  }
 		
+		id<MTLTexture> s0() { return this->_s0;  }
+		id<MTLTexture> s1() { return this->_s1;  }
+		
+		void set(int index) {
+			
+			this->_argumentEncoderBuffer.push_back([this->_device newBufferWithLength:sizeof(float)*[this->_argumentEncoder[index] encodedLength] options:MTLResourceOptionCPUCacheModeDefault]);
+
+			[this->_argumentEncoder[index] setArgumentBuffer:this->_argumentEncoderBuffer[index] offset:0];
+			[this->_argumentEncoder[index] setBuffer:this->_timeBuffer offset:0 atIndex:0];
+			[this->_argumentEncoder[index] setBuffer:this->_resolutionBuffer offset:0 atIndex:1];
+			[this->_argumentEncoder[index] setBuffer:this->_mouseBuffer offset:0 atIndex:2];
+			[this->_argumentEncoder[index] setTexture:this->_o0 atIndex:3];
+			[this->_argumentEncoder[index] setTexture:this->_o1 atIndex:4];
+			[this->_argumentEncoder[index] setTexture:this->_s0 atIndex:5];
+			[this->_argumentEncoder[index] setTexture:this->_s1 atIndex:6];
+				
+			NSString *path = this->_uniforms.size()?this->_uniforms[index]:@"./default.json";
+			NSString *json= [[NSString alloc] initWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
+			NSData *jsonData = [json dataUsingEncoding:NSUnicodeStringEncoding];
+			NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:jsonData options:NSJSONReadingAllowFragments error:nil];
+			NSMutableArray *list = [NSMutableArray array];
+						
+			for(id key in [dict keyEnumerator]) {
+				[list addObject:key];
+			}
+			list = (NSMutableArray *)[(NSArray *)list sortedArrayUsingComparator:^NSComparisonResult(NSString *s1,NSString *s2) {
+				int n1 = [[s1 componentsSeparatedByString:@"_"][1] intValue];
+				int n2 = [[s2 componentsSeparatedByString:@"_"][1] intValue];
+				if(n1<n2) return (NSComparisonResult)NSOrderedAscending;
+				else if(n1>n2) return (NSComparisonResult)NSOrderedDescending;
+				else return (NSComparisonResult)NSOrderedSame;
+			}];
+			
+			
+			for(int n=0; n<[list count]; n++) {
+				
+				if([this->_uniform[index] count]<=n) {
+					[this->_uniform[index] addObject:dict[list[n]]];
+				}
+				else {
+					this->_uniform[index][n] = dict[list[n]];
+				}
+				
+				if(this->_params.size()<=n) {
+					this->_params.push_back((id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault]);
+					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[n] offset:0 atIndex:7+n];
+				}
+				else {
+					this->_params[n] = (id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
+					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[n] offset:0 atIndex:7+n];
+				}
+				
+			}
+		}
+		
+		bool reloadShader(unsigned int index, dispatch_data_t data, NSString *uniform=@"u0.json") {
+			this->_uniforms[index] = uniform;
+			bool ret = MetalLayer::reloadShader(data,index);
+			this->set(index);
+			return ret;
+		}
 		
 		bool setup() {
 			
@@ -61,67 +121,23 @@ class HydraMetalLayer : public MetalLayer {
 			this->_o1 = [this->_device newTextureWithDescriptor:texDesc];
 			if(!this->_o1)  return false;
 			
-			this->_o2 = [this->_device newTextureWithDescriptor:texDesc];
-			if(!this->_o2)  return false;
+			this->_s0 = [this->_device newTextureWithDescriptor:texDesc];
+			if(!this->_s0)  return false;
 			
-			this->_o3 = [this->_device newTextureWithDescriptor:texDesc];
-			if(!this->_o3)  return false;
+			this->_s1 = [this->_device newTextureWithDescriptor:texDesc];
+			if(!this->_s1)  return false;
 		
 			if(MetalLayer::setup()==false) return false;
-			
-			for(int k=0; k<this->_library.size(); k++) {
-				
-				this->_argumentEncoderBuffer.push_back([this->_device newBufferWithLength:sizeof(float)*[this->_argumentEncoder[k] encodedLength] options:MTLResourceOptionCPUCacheModeDefault]);
-
-				[this->_argumentEncoder[k] setArgumentBuffer:this->_argumentEncoderBuffer[k] offset:0];
-				[this->_argumentEncoder[k] setBuffer:this->_timeBuffer offset:0 atIndex:0];
-				[this->_argumentEncoder[k] setBuffer:this->_resolutionBuffer offset:0 atIndex:1];
-				[this->_argumentEncoder[k] setBuffer:this->_mouseBuffer offset:0 atIndex:2];
-				[this->_argumentEncoder[k] setTexture:this->_o0 atIndex:3];
-				[this->_argumentEncoder[k] setTexture:this->_o1 atIndex:4];
-				[this->_argumentEncoder[k] setTexture:this->_o2 atIndex:5];
-				[this->_argumentEncoder[k] setTexture:this->_o3 atIndex:6];
-					
-				NSString *path = this->_uniforms.size()?this->_uniforms[k]:@"./default.json";
-				NSString *json= [[NSString alloc] initWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
-				NSData *jsonData = [json dataUsingEncoding:NSUnicodeStringEncoding];
-				NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:jsonData options:NSJSONReadingAllowFragments error:nil];
-				NSMutableArray *list = [NSMutableArray array];
-				for(id key in [dict keyEnumerator]) {
-					[list addObject:key];
-				}
-				list = (NSMutableArray *)[(NSArray *)list sortedArrayUsingComparator:^NSComparisonResult(NSString *s1,NSString *s2) {
-					int n1 = [[s1 componentsSeparatedByString:@"_"][1] intValue];
-					int n2 = [[s2 componentsSeparatedByString:@"_"][1] intValue];
-					if(n1<n2) return (NSComparisonResult)NSOrderedAscending;
-					else if(n1>n2) return (NSComparisonResult)NSOrderedDescending;
-					else return (NSComparisonResult)NSOrderedSame;
-				}];
-					
-				_uniform.push_back([NSMutableArray array]);
-				
-				for(int n=0; n<[list count]; n++) {
-					
-					if(n<=[_uniform[k] count]) {
-						[_uniform[k] addObject:dict[list[n]]];
-					}
-					else {
-						_uniform[k][n] = dict[list[n]];
-					}
-					
-					if(n<=_params.size()) {
-						_params.push_back((id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault]);
-						[_argumentEncoder[k] setBuffer:(id<MTLBuffer>)_params[n] offset:0 atIndex:7+n];
-					}
-					
-				}
-			}
 						
+			for(int k=0; k<this->_library.size(); k++) {
+				this->_uniform.push_back([NSMutableArray array]);
+				this->set(k);
+			}
+									
 			return true;
 		} 
 		
-		      
-		bool init(int width,int height,std::vector<NSString *> shaders={@"defalt.metallib"},std::vector<NSString *> uniforms={@"defalt.metallib"}, bool isGetBytes=false) {
+		bool init(int width,int height,std::vector<NSString *> shaders={@"defalt.metallib"},std::vector<NSString *> uniforms={@"u0.json"}, bool isGetBytes=false) {
 			for(int k=0; k<uniforms.size(); k++) this->_uniforms.push_back(uniforms[k]);
 			return MetalLayer::init(width,height,shaders,isGetBytes);
 		}
@@ -169,14 +185,14 @@ class HydraMetalLayer : public MetalLayer {
 			[renderEncoder setVertexBuffer:this->_verticesBuffer offset:0 atIndex:0];
 			//[renderEncoder setVertexBuffer:this->_texcoordBuffer offset:0 atIndex:1];
 			
-			[renderEncoder useResource:_timeBuffer usage:MTLResourceUsageRead];
-			[renderEncoder useResource:_resolutionBuffer usage:MTLResourceUsageRead];
-			[renderEncoder useResource:_mouseBuffer usage:MTLResourceUsageRead];
+			[renderEncoder useResource:this->_timeBuffer usage:MTLResourceUsageRead];
+			[renderEncoder useResource:this->_resolutionBuffer usage:MTLResourceUsageRead];
+			[renderEncoder useResource:this->_mouseBuffer usage:MTLResourceUsageRead];
 				
-			[renderEncoder useResource:_o0 usage:MTLResourceUsageSample];
-			[renderEncoder useResource:_o1 usage:MTLResourceUsageSample];
-			[renderEncoder useResource:_o2 usage:MTLResourceUsageSample];
-			[renderEncoder useResource:_o3 usage:MTLResourceUsageSample];
+			[renderEncoder useResource:this->_o0 usage:MTLResourceUsageSample];
+			[renderEncoder useResource:this->_o1 usage:MTLResourceUsageSample];
+			[renderEncoder useResource:this->_s0 usage:MTLResourceUsageSample];
+			[renderEncoder useResource:this->_s1 usage:MTLResourceUsageSample];
 				
 			for(int n=0; n<[this->_uniform[mode] count]; n++) {
 				[renderEncoder useResource:(id<MTLBuffer>)this->_params[n] usage:MTLResourceUsageRead];

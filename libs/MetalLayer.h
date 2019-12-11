@@ -1,6 +1,3 @@
-//#import <MetalKit/MetalKit.h>
-//#import <vector>
-
 namespace Plane {
 	
 	static const int VERTICES_SIZE = 4;
@@ -68,8 +65,8 @@ class MetalLayer {
 				this->_renderPipelineDescriptor.push_back([MTLRenderPipelineDescriptor new]);
 				if(!this->_renderPipelineDescriptor[k]) return nil;
 				this->_argumentEncoder.push_back([fragmentFunction newArgumentEncoderWithBufferIndex:0]);
-				this->_renderPipelineDescriptor[k].depthAttachmentPixelFormat = MTLPixelFormatInvalid;
-				this->_renderPipelineDescriptor[k].stencilAttachmentPixelFormat = MTLPixelFormatInvalid;
+				this->_renderPipelineDescriptor[k].depthAttachmentPixelFormat      = MTLPixelFormatInvalid;
+				this->_renderPipelineDescriptor[k].stencilAttachmentPixelFormat    = MTLPixelFormatInvalid;
 				this->_renderPipelineDescriptor[k].colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
 				if(this->_isGetBytes) {
 					this->_renderPipelineDescriptor[k].colorAttachments[0].blendingEnabled = NO;
@@ -147,7 +144,7 @@ class MetalLayer {
 			this->_device = MTLCreateSystemDefaultDevice();
 			this->_metalLayer.device = this->_device;
 			this->_metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-			this->_metalLayer.colorspace = CGColorSpaceCreateDeviceRGB();
+			this->_metalLayer.colorspace =  [[NSScreen mainScreen] colorSpace].CGColorSpace;//CGColorSpaceCreateDeviceRGB();
 			this->_metalLayer.opaque = NO;
 			this->_metalLayer.framebufferOnly = NO;
 			this->_metalLayer.displaySyncEnabled = YES;

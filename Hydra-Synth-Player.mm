@@ -13,6 +13,7 @@ class App {
         
         dispatch_source_t timer;
         unsigned int *o0 = nullptr;
+        unsigned int *s0 = nullptr;
         
         CGRect rect = CGRectMake(0,0,1280,720);
         
@@ -23,7 +24,8 @@ class App {
             int w = rect.size.width;
             int h = rect.size.height;
             
-            this->o0 = new unsigned int[w*h];  
+            this->o0 = new unsigned int[w*h]; 
+            this->s0 = new unsigned int[w*h];  
             
             this->win = [[NSWindow alloc] initWithContentRect:rect styleMask:1|1<<2 backing:NSBackingStoreBuffered defer:NO];
             this->view = [[NSView alloc] initWithFrame:rect];
@@ -37,7 +39,10 @@ class App {
                 
                 [[this->win contentView] addSubview:this->view];
                 
-                for(int k=0; k<w*h; k++) this->o0[k] = 0x0;
+                for(int k=0; k<w*h; k++) {
+                    this->o0[k] = 0xFF000000; // ABGR 
+                    this->s0[k] = 0xFF000000;
+                }
                 
                 this->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_queue_create("ENTER_FRAME",0));
                 dispatch_source_set_timer(this->timer,dispatch_time(0,0),(1.0/60)*1000000000,0);
@@ -47,9 +52,20 @@ class App {
                     int height = this->rect.size.height;
                                             
                     [this->layer->o0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
+                    
+                    [this->layer->s0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
+                    
+                    
                     this->layer->update(^(id<MTLCommandBuffer> commandBuffer) {
                         
                         [this->layer->drawableTexture() getBytes:this->o0 bytesPerRow:(width<<2) fromRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0];
+                        
+                        for(int i=0; i<height; i++) {
+                            for(int j=0; j<width; j++) {
+                                unsigned int argb = this->o0[i*width+j];
+                                this->o0[i*width+j] = (0xFF00FF00&argb)|((argb>>16)&0xFF)|((argb&0xFF)<<16);
+                            }
+                        }
                         
                         this->layer->cleanup();
                     });
@@ -69,10 +85,14 @@ class App {
         
         ~App() {
             
+            
             if(this->timer){
                 dispatch_source_cancel(this->timer);
                 this->timer = nullptr;
             }
+                
+            delete[] this->o0;
+            delete[] this->s0;
                 
             [this->win setReleasedWhenClosed:NO];
             [this->win close];
