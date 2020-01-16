@@ -32,7 +32,7 @@ class App {
             [this->view setWantsLayer:YES];
 
             this->layer = new HydraMetalLayer();
-            this->layer->init(rect.size.width,rect.size.height,{@"./assets/s0.metallib"},{@"./assets/u0.json"});
+            this->layer->init(rect.size.width,rect.size.height,{@"./MSL-Hydra-Synth/assets/s0.metallib"},{@"./MSL-Hydra-Synth/assets/u0.json"});
             if(this->layer->isInit()) {
             
                 this->view.layer = this->layer->layer();

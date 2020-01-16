@@ -1,0 +1,3 @@
+[submodule "MSL-Hydra-Synth"]
+	path = MSL-Hydra-Synth
+	url = https://github.com/mizt/MSL-Hydra-Synth
