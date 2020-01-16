@@ -1,3 +1,7 @@
+#define WIDTH 1280
+#define HEIGHT 720
+#define FPS 60.0
+
 #import <Cocoa/Cocoa.h>
 #import <MetalKit/MetalKit.h>
 #import <vector>
@@ -15,7 +19,7 @@ class App {
         unsigned int *o0 = nullptr;
         unsigned int *s0 = nullptr;
         
-        CGRect rect = CGRectMake(0,0,1280,720);
+        CGRect rect = CGRectMake(0,0,WIDTH,HEIGHT);
         
     public:
                 
@@ -32,7 +36,11 @@ class App {
             [this->view setWantsLayer:YES];
 
             this->layer = new HydraMetalLayer();
-            this->layer->init(rect.size.width,rect.size.height,{@"./MSL-Hydra-Synth/assets/s0.metallib"},{@"./MSL-Hydra-Synth/assets/u0.json"});
+            this->layer->init(rect.size.width,rect.size.height,
+                {@"./MSL-Hydra-Synth/assets/s0.metallib"},
+                {@"./MSL-Hydra-Synth/assets/u0.json"}
+            );
+            
             if(this->layer->isInit()) {
             
                 this->view.layer = this->layer->layer();
@@ -45,7 +53,7 @@ class App {
                 }
                 
                 this->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_queue_create("ENTER_FRAME",0));
-                dispatch_source_set_timer(this->timer,dispatch_time(0,0),(1.0/60)*1000000000,0);
+                dispatch_source_set_timer(this->timer,dispatch_time(0,0),(1.0/FPS)*1000000000,0);
                 dispatch_source_set_event_handler(this->timer,^{
                     
                     int width  = this->rect.size.width;
@@ -54,7 +62,6 @@ class App {
                     [this->layer->o0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
                     
                     [this->layer->s0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
-                    
                     
                     this->layer->update(^(id<MTLCommandBuffer> commandBuffer) {
                         
