@@ -5,6 +5,8 @@ class HydraMetalLayer : public MetalLayer {
 	
 	private:
 		
+		const int offset = 11;
+		
 		JSContext *context; 
 		
 		id<MTLBuffer> _timeBuffer;
@@ -13,8 +15,13 @@ class HydraMetalLayer : public MetalLayer {
 		
 		id<MTLTexture> _o0;
 		id<MTLTexture> _o1;
+		id<MTLTexture> _o2;
+		id<MTLTexture> _o3;
+		
 		id<MTLTexture> _s0;
 		id<MTLTexture> _s1;
+		id<MTLTexture> _s2;
+		id<MTLTexture> _s3;
 		
 		std::vector<id> _params;
 		std::vector<NSString *> _uniforms;
@@ -28,9 +35,13 @@ class HydraMetalLayer : public MetalLayer {
 		
 		id<MTLTexture> o0() { return this->_o0; }
 		id<MTLTexture> o1() { return this->_o1;  }
+		id<MTLTexture> o2() { return this->_o2;  }
+		id<MTLTexture> o3() { return this->_o3;  }
 		
 		id<MTLTexture> s0() { return this->_s0;  }
 		id<MTLTexture> s1() { return this->_s1;  }
+		id<MTLTexture> s2() { return this->_s2;  }
+		id<MTLTexture> s3() { return this->_s3;  }
 		
 		void set(int index) {
 			
@@ -42,8 +53,12 @@ class HydraMetalLayer : public MetalLayer {
 			[this->_argumentEncoder[index] setBuffer:this->_mouseBuffer offset:0 atIndex:2];
 			[this->_argumentEncoder[index] setTexture:this->_o0 atIndex:3];
 			[this->_argumentEncoder[index] setTexture:this->_o1 atIndex:4];
-			[this->_argumentEncoder[index] setTexture:this->_s0 atIndex:5];
-			[this->_argumentEncoder[index] setTexture:this->_s1 atIndex:6];
+			[this->_argumentEncoder[index] setTexture:this->_o2 atIndex:5];
+			[this->_argumentEncoder[index] setTexture:this->_o3 atIndex:6];
+			[this->_argumentEncoder[index] setTexture:this->_s0 atIndex:7];
+			[this->_argumentEncoder[index] setTexture:this->_s1 atIndex:8];
+			[this->_argumentEncoder[index] setTexture:this->_s2 atIndex:9];	
+			[this->_argumentEncoder[index] setTexture:this->_s3 atIndex:10];
 				
 			NSString *path = this->_uniforms.size()?this->_uniforms[index]:@"./default.json";
 			NSString *json= [[NSString alloc] initWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
@@ -74,11 +89,11 @@ class HydraMetalLayer : public MetalLayer {
 				
 				if(this->_params.size()<=n) {
 					this->_params.push_back((id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault]);
-					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[n] offset:0 atIndex:7+n];
+					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[n] offset:0 atIndex:offset+n];
 				}
 				else {
 					this->_params[n] = (id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
-					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[n] offset:0 atIndex:7+n];
+					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[n] offset:0 atIndex:offset+n];
 				}
 				
 			}
@@ -121,11 +136,24 @@ class HydraMetalLayer : public MetalLayer {
 			this->_o1 = [this->_device newTextureWithDescriptor:texDesc];
 			if(!this->_o1)  return false;
 			
+			this->_o2 = [this->_device newTextureWithDescriptor:texDesc];
+			if(!this->_o2)  return false;
+			
+			this->_o3 = [this->_device newTextureWithDescriptor:texDesc];
+			if(!this->_o3)  return false;
+			
 			this->_s0 = [this->_device newTextureWithDescriptor:texDesc];
 			if(!this->_s0)  return false;
 			
 			this->_s1 = [this->_device newTextureWithDescriptor:texDesc];
 			if(!this->_s1)  return false;
+		
+			this->_s2 = [this->_device newTextureWithDescriptor:texDesc];
+			if(!this->_s2)  return false;
+		
+			this->_s3 = [this->_device newTextureWithDescriptor:texDesc];
+			if(!this->_s3)  return false;
+		
 		
 			if(MetalLayer::setup()==false) return false;
 						
@@ -176,7 +204,7 @@ class HydraMetalLayer : public MetalLayer {
 			MTLRenderPassColorAttachmentDescriptor *colorAttachment = this->_renderPassDescriptor.colorAttachments[0];
 			colorAttachment.texture = this->_metalDrawable.texture;
 			colorAttachment.loadAction  = MTLLoadActionClear;
-			colorAttachment.clearColor  = MTLClearColorMake(0.0f,0.0f,0.0f,0.0f);
+			colorAttachment.clearColor  = MTLClearColorMake(0.0f,0.0f,0.0f,1.0f);
 			colorAttachment.storeAction = MTLStoreActionStore;
 			
 			id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:this->_renderPassDescriptor];
@@ -191,8 +219,13 @@ class HydraMetalLayer : public MetalLayer {
 				
 			[renderEncoder useResource:this->_o0 usage:MTLResourceUsageSample];
 			[renderEncoder useResource:this->_o1 usage:MTLResourceUsageSample];
+			[renderEncoder useResource:this->_o2 usage:MTLResourceUsageSample];
+			[renderEncoder useResource:this->_o3 usage:MTLResourceUsageSample];
+			
 			[renderEncoder useResource:this->_s0 usage:MTLResourceUsageSample];
 			[renderEncoder useResource:this->_s1 usage:MTLResourceUsageSample];
+			[renderEncoder useResource:this->_s2 usage:MTLResourceUsageSample];
+			[renderEncoder useResource:this->_s3 usage:MTLResourceUsageSample];
 				
 			for(int n=0; n<[this->_uniform[mode] count]; n++) {
 				[renderEncoder useResource:(id<MTLBuffer>)this->_params[n] usage:MTLResourceUsageRead];
@@ -213,6 +246,21 @@ class HydraMetalLayer : public MetalLayer {
 		}
 		
 		~HydraMetalLayer() {
+			
+			NSLog(@"~HydraMetalLayer");
+
+			
+			this->_o0 = nil;
+			this->_o1 = nil;
+			this->_o2 = nil;
+			this->_o3 = nil;
+			
+			this->_s0 = nil;
+			this->_s1 = nil;
+			this->_s2 = nil;
+			this->_s3 = nil;
+			
+			this->context = nil;
 			
 		}
 };

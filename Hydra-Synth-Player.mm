@@ -17,7 +17,14 @@ class App {
         
         dispatch_source_t timer;
         unsigned int *o0 = nullptr;
+        unsigned int *o1 = nullptr;
+        unsigned int *o2 = nullptr;
+        unsigned int *o3 = nullptr;
+        
         unsigned int *s0 = nullptr;
+        unsigned int *s1 = nullptr;
+        unsigned int *s2 = nullptr;
+        unsigned int *s3 = nullptr;
         
         CGRect rect = CGRectMake(0,0,WIDTH,HEIGHT);
         
@@ -29,15 +36,24 @@ class App {
             int h = rect.size.height;
             
             this->o0 = new unsigned int[w*h]; 
-            this->s0 = new unsigned int[w*h];  
-            
+            /*
+            this->o1 = new unsigned int[w*h]; 
+            this->o2 = new unsigned int[w*h]; 
+            this->o3 = new unsigned int[w*h]; 
+            */
+            this->s0 = new unsigned int[w*h]; 
+            /*
+            this->s1 = new unsigned int[w*h];  
+            this->s2 = new unsigned int[w*h];  
+            this->s3 = new unsigned int[w*h];  
+            */
             this->win = [[NSWindow alloc] initWithContentRect:rect styleMask:1|1<<2 backing:NSBackingStoreBuffered defer:NO];
             this->view = [[NSView alloc] initWithFrame:rect];
             [this->view setWantsLayer:YES];
 
             this->layer = new HydraMetalLayer();
             this->layer->init(rect.size.width,rect.size.height,
-                {@"./MSL-Hydra-Synth/assets/s0.metallib"},
+                {@"./MSL-Hydra-Synth/assets/o0.metallib"},
                 {@"./MSL-Hydra-Synth/assets/u0.json"}
             );
             
@@ -49,7 +65,7 @@ class App {
                 
                 for(int k=0; k<w*h; k++) {
                     this->o0[k] = 0xFF000000; // ABGR 
-                    this->s0[k] = 0xFF000000;
+                    this->s0[k] = 0xFFFF0000; // ABGR 
                 }
                 
                 this->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_queue_create("ENTER_FRAME",0));
@@ -60,8 +76,18 @@ class App {
                     int height = this->rect.size.height;
                                             
                     [this->layer->o0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
-                    
+                    /*
+                    [this->layer->o1() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
+                    [this->layer->o2() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
+                    [this->layer->o3() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
+                    */
                     [this->layer->s0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
+                    /*
+                    [this->layer->s1() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
+                    [this->layer->s2() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
+                    [this->layer->s3() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
+                    */
+                    
                     
                     this->layer->update(^(id<MTLCommandBuffer> commandBuffer) {
                         

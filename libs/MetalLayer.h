@@ -103,7 +103,19 @@ class MetalLayer {
 	public:
 		
 		MetalLayer() {}
-		~MetalLayer() {}
+		~MetalLayer() {
+			NSLog(@"~MetalLayer");
+			
+			id<MTLCommandBuffer> commandBuffer = [this->_commandQueue commandBuffer];
+			//[commandBuffer presentDrawable:nil];
+			this->_commandQueue = nil;
+			this->_metalDrawable = nil; 
+			this->_metalLayer = nil;
+			this->_drawabletexture = nil;
+			//if(this->_verticesBuffer) this->_verticesBuffer = nil;
+			//if(this->_indicesBuffer) this->_indicesBuffer = nil;
+			
+		}
 		
 		virtual bool setup() {
 			
