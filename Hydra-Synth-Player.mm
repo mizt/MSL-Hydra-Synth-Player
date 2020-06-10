@@ -28,6 +28,19 @@ class App {
         
         CGRect rect = CGRectMake(0,0,WIDTH,HEIGHT);
         
+        dispatch_fd_t fd;
+        double timestamp[2]= {-1,-1};
+        NSString *path[2] = {
+            @"./MSL-Hydra-Synth/assets/o0.metallib",
+            @"./MSL-Hydra-Synth/assets/u0.json"
+            //[[[NSBundle mainBundle] URLForResource:@"o0" withExtension:@"metallib"] path],
+            //[[[NSBundle mainBundle] URLForResource:@"u0" withExtension:@"json"] path]
+        };
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        
+        dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+
+        
     public:
                 
         App() {
@@ -53,8 +66,8 @@ class App {
 
             this->layer = new HydraMetalLayer();
             this->layer->init(rect.size.width,rect.size.height,
-                {@"./MSL-Hydra-Synth/assets/o0.metallib"},
-                {@"./MSL-Hydra-Synth/assets/u0.json"}
+                {path[0]},
+                {path[1]}
             );
             
             if(this->layer->isInit()) {
@@ -87,6 +100,48 @@ class App {
                     [this->layer->s2() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
                     [this->layer->s3() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
                     */
+                    
+                     if([this->fileManager fileExistsAtPath:this->path[0]]) { //}&&[this->fileManager fileExistsAtPath:this->path[1]]) {
+                                                
+                        double date[2] = {
+                            [[[this->fileManager attributesOfItemAtPath:this->path[0] error:nil] objectForKey:NSFileModificationDate] timeIntervalSince1970],
+                            [[[this->fileManager attributesOfItemAtPath:this->path[1] error:nil] objectForKey:NSFileModificationDate] timeIntervalSince1970]
+                        };
+                        
+                        if(this->timestamp[0]!=date[0]) { // &&this->timestamp[1]!=date[1]) {
+                                                    
+                            this->timestamp[0] = date[0];
+                            this->timestamp[1] = date[1];
+                                                    
+                            NSError *error = nil;
+                            NSDictionary *attributes[2] = {
+                                [this->fileManager attributesOfItemAtPath:this->path[0] error:&error],
+                                [this->fileManager attributesOfItemAtPath:this->path[1] error:&error]
+                            };
+                            if(!error) {
+                                long size[2] = {
+                                    [[attributes[0] objectForKey:NSFileSize] integerValue],
+                                    [[attributes[1] objectForKey:NSFileSize] integerValue]
+                                };
+                                
+                                if(size[0]>0&&size[1]>0) {
+                                    this->fd = open([this->path[0] UTF8String],O_RDONLY);
+                                    dispatch_read(fd,size[0],dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^(dispatch_data_t d, int e) {
+                                        
+                                        usleep(1000000./120.);
+                                        this->layer->reloadShader(0,d,this->path[1]);
+                                        close(this->fd);                                    
+                                        
+                                        dispatch_semaphore_signal(this->semaphore);
+
+                                    });
+                                    dispatch_semaphore_wait(this->semaphore,DISPATCH_TIME_FOREVER);
+                                                                        
+                                }
+                            }
+                        }
+                    }
+                    
                     
                     
                     this->layer->update(^(id<MTLCommandBuffer> commandBuffer) {
