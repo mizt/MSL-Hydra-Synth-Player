@@ -29,7 +29,7 @@ class App {
         CGRect rect = CGRectMake(0,0,WIDTH,HEIGHT);
         
         dispatch_fd_t fd;
-        double timestamp[2] = {-1,-1};
+        double timestamp = -1;
         NSString *path[2] = {
             @"./MSL-Hydra-Synth/assets/o0.metallib",
             @"./MSL-Hydra-Synth/assets/u0.json"
@@ -103,18 +103,14 @@ class App {
                     
                      if([this->fileManager fileExistsAtPath:this->path[0]]) { //}&&[this->fileManager fileExistsAtPath:this->path[1]]) {
                                                 
-                        double date[2] = {
-                            [[[this->fileManager attributesOfItemAtPath:this->path[0] error:nil] objectForKey:NSFileModificationDate] timeIntervalSince1970],
-                            [[[this->fileManager attributesOfItemAtPath:this->path[1] error:nil] objectForKey:NSFileModificationDate] timeIntervalSince1970]
-                        };
+                        double date = [[[this->fileManager attributesOfItemAtPath:this->path[0] error:nil] objectForKey:NSFileModificationDate] timeIntervalSince1970];
                         
-                        if(this->timestamp[0]==-1) { // initalize
-                             this->timestamp[0] = date[0];
+                        if(this->timestamp==-1) { // initalize
+                             this->timestamp = date;
                         } 
-                        else if(this->timestamp[0]!=date[0]) { // &&this->timestamp[1]!=date[1]) {
+                        else if(this->timestamp!=date) { // &&this->timestamp[1]!=date[1]) {
                                                     
-                            this->timestamp[0] = date[0];
-                            this->timestamp[1] = date[1];
+                            this->timestamp = date;
                                                     
                             NSError *error = nil;
                             NSDictionary *attributes[2] = {
@@ -123,7 +119,6 @@ class App {
                             };
                             
                             if(!error) {
-                                
                                 long size[2] = {
                                     [[attributes[0] objectForKey:NSFileSize] integerValue],
                                     [[attributes[1] objectForKey:NSFileSize] integerValue]
@@ -131,12 +126,10 @@ class App {
                                 
                                 if(size[0]>0&&size[1]>0) {
                                     this->fd = open([this->path[0] UTF8String],O_RDONLY);
-                                    dispatch_read(fd,size[0],dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^(dispatch_data_t d, int e) {
+                                    dispatch_read(fd,size[0],dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^(dispatch_data_t d,int e) {
                                         
-                                        usleep(1000000./120.);
                                         this->layer->reloadShader(0,d,this->path[1]);
                                         close(this->fd);                                    
-                                        
                                         dispatch_semaphore_signal(this->semaphore);
 
                                     });
