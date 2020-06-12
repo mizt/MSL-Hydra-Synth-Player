@@ -29,7 +29,7 @@ class App {
         CGRect rect = CGRectMake(0,0,WIDTH,HEIGHT);
         
         dispatch_fd_t fd;
-        double timestamp[2]= {-1,-1};
+        double timestamp[2] = {-1,-1};
         NSString *path[2] = {
             @"./MSL-Hydra-Synth/assets/o0.metallib",
             @"./MSL-Hydra-Synth/assets/u0.json"
@@ -108,7 +108,10 @@ class App {
                             [[[this->fileManager attributesOfItemAtPath:this->path[1] error:nil] objectForKey:NSFileModificationDate] timeIntervalSince1970]
                         };
                         
-                        if(this->timestamp[0]!=date[0]) { // &&this->timestamp[1]!=date[1]) {
+                        if(this->timestamp[0]==-1) { // initalize
+                             this->timestamp[0] = date[0];
+                        } 
+                        else if(this->timestamp[0]!=date[0]) { // &&this->timestamp[1]!=date[1]) {
                                                     
                             this->timestamp[0] = date[0];
                             this->timestamp[1] = date[1];
@@ -118,7 +121,9 @@ class App {
                                 [this->fileManager attributesOfItemAtPath:this->path[0] error:&error],
                                 [this->fileManager attributesOfItemAtPath:this->path[1] error:&error]
                             };
+                            
                             if(!error) {
+                                
                                 long size[2] = {
                                     [[attributes[0] objectForKey:NSFileSize] integerValue],
                                     [[attributes[1] objectForKey:NSFileSize] integerValue]
@@ -141,9 +146,7 @@ class App {
                             }
                         }
                     }
-                    
-                    
-                    
+                                        
                     this->layer->update(^(id<MTLCommandBuffer> commandBuffer) {
                         
                         [this->layer->drawableTexture() getBytes:this->o0 bytesPerRow:(width<<2) fromRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0];

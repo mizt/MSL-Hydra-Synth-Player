@@ -1,13 +1,182 @@
 #import "MetalLayer.h"
 #import <JavascriptCore/JavascriptCore.h>
+#import <objc/runtime.h>
+#import <objc/message.h>
+#import <utility>
+#import <string>
+#import <vector>
+
+#define OFFSET_UNIFORM 11
+
+namespace Plane {
+	static const float textureCoordinateData[6][2] = {
+		{ 0.f, 0.f },
+		{ 1.f, 0.f },
+		{ 0.f, 1.f },
+		{ 1.f, 0.f },
+		{ 0.f, 1.f },
+		{ 1.f, 1.f }
+	};
+}
+
+@interface NSSlider (HydraSynth) 
+@property (nonatomic) int mode;
+@property (nonatomic) int index;
+@end
+
+@implementation NSSlider (HydraSynth)
+
+-(int)mode { return [objc_getAssociatedObject(self, (const void *)@"mode") intValue]; }
+-(void)setMode:(int)mode { objc_setAssociatedObject(self,(const void *)@"mode", [NSNumber numberWithInt:mode],OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+
+-(int)index { return [objc_getAssociatedObject(self, (const void *)@"index") intValue]; }
+-(void)setIndex:(int)index { objc_setAssociatedObject(self,(const void *)@"index", [NSNumber numberWithInt:index],OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+
+@end
+
+#pragma mark TextField
+@interface TextField:NSTextField {
+}
+@end
+@implementation TextField
+-(bool)isDark {
+	id style = [[[NSUserDefaults standardUserDefaults] persistentDomainForName:NSGlobalDomain] objectForKey:@"AppleInterfaceStyle"];
+	return (style&&[style isKindOfClass:[NSString class]]&&[style caseInsensitiveCompare:@"dark"]==NSOrderedSame)?true:false;}
+-(id)initWithFrame:(NSRect)frame {
+	self = [super initWithFrame:frame];
+	if(self) {
+		[self setEditable:NO];
+		[self setSelectable:NO];
+		[self setBordered:NO];
+		[self setDrawsBackground:NO];
+		self.textColor = [self isDark]?[NSColor whiteColor]:[NSColor blackColor];
+		[self setFont:[NSFont systemFontOfSize:14]];
+	}
+	return self;
+}
+-(void)text:(NSString *)text {
+	[self setStringValue:text];
+	[self sizeToFit];
+}
+@end
+
+#pragma mark SliderMenuItem
+@interface SliderMenuItem:NSMenuItem {
+	NSView *view;
+	NSSlider *slider;
+	TextField *textField;
+	BOOL isLabel;
+}@end
+@implementation SliderMenuItem
+-(bool)isDark {
+	id style = [[[NSUserDefaults standardUserDefaults] persistentDomainForName:NSGlobalDomain] objectForKey:@"AppleInterfaceStyle"];
+	return (style&&[style isKindOfClass:[NSString class]]&&[style caseInsensitiveCompare:@"dark"]==NSOrderedSame)?true:false;
+}
+-(double)doubleValue { return [slider doubleValue]; }
+-(void)doubleValue:(double)value {
+	if([slider minValue]<=value&&value<=[slider maxValue]) {
+		[slider setFloatValue:value];
+	}
+}
+-(void)text:(NSString *)name {
+	[textField text:name];
+	[view setFrame:NSMakeRect(0,0,19+[slider bounds].size.width+5+[textField bounds].size.width+19,16+8+8)];
+}
+-(void)on {
+	[slider setEnabled:YES];
+	[textField setTextColor:[self isDark]?[NSColor whiteColor]:[NSColor blackColor]];
+}
+-(void)off {
+	[slider setEnabled:NO];
+	[textField setTextColor:[self isDark]?[NSColor lightGrayColor]:[NSColor darkGrayColor]];
+}
+-(id)init:(NSString *)key :(double)min :(double)max :(double)value :(bool)label :(int)mode :(int)index {
+	self = [super init];
+	if(self) {
+		
+		view = [[NSView alloc] init];
+		
+		slider = [[NSSlider alloc] initWithFrame:CGRectMake(19,8,160,16)];
+		[slider setMode:mode];
+		[slider setIndex:index];
+		[slider setMinValue:min];
+		[slider setMaxValue:max];
+		[slider setFloatValue:value];
+		[view addSubview:slider];
+		[slider setTarget:slider];
+		[slider setIdentifier:key];
+		[slider setAction:NSSelectorFromString(@"onUpdate")];
+		
+		isLabel = label;
+		
+		if(isLabel) {
+			
+			NSString *label = [key componentsSeparatedByString:@"_"][0];
+			
+			textField = [[TextField alloc] initWithFrame:NSMakeRect(19+[slider bounds].size.width+5,8,128,19)];
+			[textField text:label];
+			[view setFrame:NSMakeRect(0,0,19+[slider bounds].size.width+5+[textField bounds].size.width+19,16+8+8)];
+			[view addSubview:textField];
+			[self setView:view];
+		}
+		else {
+			[view setFrame:NSMakeRect(0,0,19+[slider bounds].size.width+19,16+8+8)];
+			[view addSubview:textField];
+			[self setView:view];
+		}
+	}
+	return self;
+}
+@end
+
+
+class Slider {
+	
+	protected:
+		
+		NSMenuItem  *menuItem;
+		NSString  *menuName;
+		
+	public:
+				
+		Slider(NSString *name, double min, double max, double value, bool label, int mode, int index) {
+			menuName = name;
+			menuItem = [[SliderMenuItem alloc] init:name :min :max :value :label :mode :index];
+		}
+		~Slider() {
+			//NSLog(@"~Slider");
+			menuItem = nil;
+		}
+		
+		NSMenuItem *item() { return menuItem; }
+		NSString *name() { return menuName; }
+		bool eq(NSString *name) { return ([menuName compare:name]==NSOrderedSame)?true:false; }
+		
+		double value() { return [(SliderMenuItem *)(menuItem) doubleValue]; }
+		void on() { [(SliderMenuItem *)(menuItem) on]; }
+		void off() { [(SliderMenuItem *)(menuItem) off]; }
+};
+
+
+
+enum HydraUniformType {
+	DoubleType = 0,
+	FunctionType,
+	SliderType
+};
+
 
 class HydraMetalLayer : public MetalLayer {
 	
 	private:
 		
-		const int offset = 11;
+		NSStatusItem *statusItem;
+		NSMenu *menu;
+		std::vector<std::pair<NSString*,Slider *>> items;
 		
 		JSContext *context; 
+		
+		id<MTLBuffer> _texcoordBuffer;
 		
 		id<MTLBuffer> _timeBuffer;
 		id<MTLBuffer> _resolutionBuffer;
@@ -24,10 +193,13 @@ class HydraMetalLayer : public MetalLayer {
 		id<MTLTexture> _s3;
 		
 		std::vector<id> _params;
-		std::vector<NSString *> _uniforms;
-		std::vector<NSMutableArray *> _uniform;
-
+		std::vector<NSString *> _uniformsPath;
+		std::vector<NSMutableArray *> _uniformsData;
+		
+		std::vector<std::vector<HydraUniformType>> _uniformsType;
+		
 		std::vector<id<MTLBuffer>> _argumentEncoderBuffer;
+
 
 		double _starttime;
 		
@@ -60,7 +232,7 @@ class HydraMetalLayer : public MetalLayer {
 			[this->_argumentEncoder[index] setTexture:this->_s2 atIndex:9];	
 			[this->_argumentEncoder[index] setTexture:this->_s3 atIndex:10];
 				
-			NSString *path = this->_uniforms.size()?this->_uniforms[index]:@"./default.json";
+			NSString *path = this->_uniformsPath.size()?this->_uniformsPath[index]:@"./default.json";
 			NSString *json= [[NSString alloc] initWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
 			NSData *jsonData = [json dataUsingEncoding:NSUnicodeStringEncoding];
 			NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:jsonData options:NSJSONReadingAllowFragments error:nil];
@@ -77,36 +249,131 @@ class HydraMetalLayer : public MetalLayer {
 				else return (NSComparisonResult)NSOrderedSame;
 			}];
 			
+			// remove Menu
 			
-			for(int n=0; n<[list count]; n++) {
+			for(int k=0; k<this->items.size(); k++) {
+				delete this->items[k].second;
+				this->items[k].second = nullptr;
+			}
+			
+			this->items.clear();	
+			[this->menu removeAllItems];
+			
+			
+			for(int k=0; k<[list count]; k++) {
 				
-				if([this->_uniform[index] count]<=n) {
-					[this->_uniform[index] addObject:dict[list[n]]];
+				
+				if([this->_uniformsData[index] count]<=k) { // add
+					[this->_uniformsData[index] addObject:dict[list[k]]];
 				}
-				else {
-					this->_uniform[index][n] = dict[list[n]];
+				else { // overwrite
+					this->_uniformsData[index][k] = dict[list[k]];
 				}
 				
-				if(this->_params.size()<=n) {
+				if(this->_params.size()<=k) {
 					this->_params.push_back((id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault]);
-					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[n] offset:0 atIndex:offset+n];
+					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[k] offset:0 atIndex:OFFSET_UNIFORM+k];
 				}
 				else {
-					this->_params[n] = (id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
-					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[n] offset:0 atIndex:offset+n];
+					this->_params[k] = (id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
+					[this->_argumentEncoder[index] setBuffer:(id<MTLBuffer>)this->_params[k] offset:0 atIndex:OFFSET_UNIFORM+k];
+				}
+			}
+						
+			for(int k=0; k<[list count]; k++) {
+
+				__block HydraUniformType type = HydraUniformType::DoubleType;
+				
+				if([[_uniformsData[index][k] className] compare:@"__NSCFString"]==NSOrderedSame) {
+					
+					NSString *js = this->_uniformsData[index][k];
+					
+					NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"slider\\(.+,.+,.+\\)" options:NSRegularExpressionCaseInsensitive error:nil];
+							
+					__block bool isMatch = false;
+							
+					[regex enumerateMatchesInString:js options:0 range:NSMakeRange(0,[js length]) usingBlock:^(NSTextCheckingResult *match, NSMatchingFlags flags, BOOL *stop){
+											
+						NSArray *arr = [[[[js stringByReplacingOccurrencesOfString:@" " withString:@""]
+							stringByReplacingOccurrencesOfString:@"slider(" withString:@""]
+								stringByReplacingOccurrencesOfString:@")" withString:@""] 
+									componentsSeparatedByString:@","];
+
+						if([arr count]==3) {
+							
+							type = HydraUniformType::SliderType;	
+							//NSLog(@"%@, %f, [%f-%f]",list[k],[arr[0] doubleValue],[arr[1] doubleValue],[arr[2] doubleValue]);
+							
+							this->items.push_back(std::pair<NSString *,Slider *>(
+								list[k],
+								new Slider(list[k],[arr[1] doubleValue],[arr[2] doubleValue],[arr[0] doubleValue],YES,index,k)
+							));
+							
+							float *tmp = (float *)[(id<MTLBuffer>)this->_params[k] contents];
+							tmp[0] = [arr[0] doubleValue];
+
+							[this->menu addItem:(this->items[this->items.size()-1].second)->item()];
+								
+							
+						}
+						else { // error
+							//tmp[0] = 0;
+							NSLog(@"slider() argument is incorrect");
+							
+							if(this->_uniformsType[index][k]==HydraUniformType::DoubleType) {
+								float *tmp = (float *)[(id<MTLBuffer>)this->_params[k] contents];
+								tmp[0] = 0;
+							}
+						}
+								
+						isMatch = true;
+										
+					}];
+						
+					if(isMatch==false) type = HydraUniformType::FunctionType;
+				}
+				else {
+					
+					float *tmp = (float *)[(id<MTLBuffer>)this->_params[k] contents];
+					tmp[0] = [_uniformsData[index][k] doubleValue];
+					
+				}
+				
+				if(this->_uniformsType[index].size()<=k) { // add
+					this->_uniformsType[index].push_back(type);
+				}
+				else { // overwrite
+					this->_uniformsType[index][k] = type;
 				}
 				
 			}
+					
 		}
 		
 		bool reloadShader(unsigned int index, dispatch_data_t data, NSString *uniform=@"u0.json") {
-			this->_uniforms[index] = uniform;
+			this->_uniformsPath[index] = uniform;
 			bool ret = MetalLayer::reloadShader(data,index);
 			this->set(index);
 			return ret;
 		}
 		
 		bool setup() {
+			
+			class_addMethod([NSSlider class],NSSelectorFromString(@"onUpdate"),imp_implementationWithBlock(^(id me) {
+				
+				NSString *key = ((NSSlider *)me).identifier;
+								
+				float *tmp = (float *)[(id<MTLBuffer>)this->_params[[((NSSlider *)me) index]] contents];
+				tmp[0] = [me doubleValue];
+				
+			}),"v@*");
+						
+			this->statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
+			[this->statusItem.button setEnabled:YES];
+			[this->statusItem.button setTitle:@"↓"];
+						  
+			this->menu = [[NSMenu alloc] init];            
+			this->statusItem.menu = this->menu;
 			
 			this->context = [JSContext new];
 			
@@ -115,6 +382,10 @@ class HydraMetalLayer : public MetalLayer {
 			MTLTextureDescriptor *texDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:this->_width height:this->_height mipmapped:NO];
 			if(!texDesc) return false;
 			
+			
+			this->_texcoordBuffer = [_device newBufferWithBytes:Plane::textureCoordinateData length:6*sizeof(float)*2 options:MTLResourceOptionCPUCacheModeDefault];
+			if(!_texcoordBuffer) return nil;
+		
 			this->_timeBuffer = [this->_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
 			if(!this->_timeBuffer) return false;
 			
@@ -154,11 +425,14 @@ class HydraMetalLayer : public MetalLayer {
 			this->_s3 = [this->_device newTextureWithDescriptor:texDesc];
 			if(!this->_s3)  return false;
 		
-		
 			if(MetalLayer::setup()==false) return false;
 						
 			for(int k=0; k<this->_library.size(); k++) {
-				this->_uniform.push_back([NSMutableArray array]);
+				
+				this->_uniformsData.push_back([NSMutableArray array]);
+				
+				std::vector<HydraUniformType> v;
+				this->_uniformsType.push_back(v);
 				this->set(k);
 			}
 									
@@ -166,7 +440,8 @@ class HydraMetalLayer : public MetalLayer {
 		} 
 		
 		bool init(int width,int height,std::vector<NSString *> shaders={@"defalt.metallib"},std::vector<NSString *> uniforms={@"u0.json"}, bool isGetBytes=false) {
-			for(int k=0; k<uniforms.size(); k++) this->_uniforms.push_back(uniforms[k]);
+			for(int k=0; k<uniforms.size(); k++) this->_uniformsPath.push_back(uniforms[k]);
+			
 			return MetalLayer::init(width,height,shaders,isGetBytes);
 		}
 			
@@ -191,13 +466,11 @@ class HydraMetalLayer : public MetalLayer {
 			[context evaluateScript:[NSString stringWithFormat:@"time=%f;",timeBuffer[0]]]; 
 			[context evaluateScript:[NSString stringWithFormat:@"mouse={x:%f,y:%f};",mouseBuffer[0],mouseBuffer[1]]]; 
 			
-			for(int k=0; k< [this->_uniform[mode] count]; k++) {
-				float *tmp = (float *)[(id<MTLBuffer>)this->_params[k] contents];
-				if([[_uniform[mode][k] className] compare:@"__NSCFString"]==NSOrderedSame) {
-					tmp[0] = [[context evaluateScript:[NSString stringWithFormat:@"(%@)();",this->_uniform[mode][k]]] toDouble];
-				}
-				else {
-					tmp[0] = [_uniform[mode][k] doubleValue];
+			for(int k=0; k< [this->_uniformsData[mode] count]; k++) {				
+				HydraUniformType type = this->_uniformsType[mode][k];
+				if(type==HydraUniformType::FunctionType) {
+					float *tmp = (float *)[(id<MTLBuffer>)this->_params[k] contents];
+					tmp[0] = [[context evaluateScript:[NSString stringWithFormat:@"(%@)();",this->_uniformsData[mode][k]]] toDouble];
 				}
 			}
 			
@@ -211,7 +484,7 @@ class HydraMetalLayer : public MetalLayer {
 			[renderEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
 			[renderEncoder setRenderPipelineState:this->_renderPipelineState[mode]];
 			[renderEncoder setVertexBuffer:this->_verticesBuffer offset:0 atIndex:0];
-			//[renderEncoder setVertexBuffer:this->_texcoordBuffer offset:0 atIndex:1];
+			[renderEncoder setVertexBuffer:this->_texcoordBuffer offset:0 atIndex:1];
 			
 			[renderEncoder useResource:this->_timeBuffer usage:MTLResourceUsageRead];
 			[renderEncoder useResource:this->_resolutionBuffer usage:MTLResourceUsageRead];
@@ -227,8 +500,8 @@ class HydraMetalLayer : public MetalLayer {
 			[renderEncoder useResource:this->_s2 usage:MTLResourceUsageSample];
 			[renderEncoder useResource:this->_s3 usage:MTLResourceUsageSample];
 				
-			for(int n=0; n<[this->_uniform[mode] count]; n++) {
-				[renderEncoder useResource:(id<MTLBuffer>)this->_params[n] usage:MTLResourceUsageRead];
+			for(int k=0; k<[this->_uniformsData[mode] count]; k++) {
+				[renderEncoder useResource:(id<MTLBuffer>)this->_params[k] usage:MTLResourceUsageRead];
 			}
 				
 			[renderEncoder setFragmentBuffer:this->_argumentEncoderBuffer[mode] offset:0 atIndex:0];
