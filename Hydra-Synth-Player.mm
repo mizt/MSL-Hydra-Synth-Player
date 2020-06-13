@@ -68,6 +68,7 @@ class App {
             this->layer->init(rect.size.width,rect.size.height,
                 {path[0]},
                 {path[1]}
+                //,false,true
             );
             
             if(this->layer->isInit()) {
