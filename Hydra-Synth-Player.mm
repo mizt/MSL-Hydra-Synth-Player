@@ -6,6 +6,7 @@
 #import <MetalKit/MetalKit.h>
 #import <vector>
 #import "./libs/HydraMetalLayer.h"
+#import "./libs/Menu.h"
 
 class App {
     
@@ -54,22 +55,50 @@ class App {
             this->o2 = new unsigned int[w*h]; 
             this->o3 = new unsigned int[w*h]; 
             */
+            
             this->s0 = new unsigned int[w*h]; 
             /*
             this->s1 = new unsigned int[w*h];  
             this->s2 = new unsigned int[w*h];  
             this->s3 = new unsigned int[w*h];  
             */
+            
             this->win = [[NSWindow alloc] initWithContentRect:rect styleMask:1|1<<2 backing:NSBackingStoreBuffered defer:NO];
             this->view = [[NSView alloc] initWithFrame:rect];
             [this->view setWantsLayer:YES];
-
+            
+            
             this->layer = new HydraMetalLayer();
             this->layer->init(rect.size.width,rect.size.height,
                 {path[0]},
                 {path[1]}
-                //,false,true
+                ,false
             );
+            
+            Menu::$()->on(^(id me,IMenuItem *item){
+                if(item) {
+                    MenuType type = item->type();
+                    if(type==MenuType::TEXT||type==MenuType::BUTTON) {
+                        if(item->isParent()) {
+                            
+                        }
+                        else {
+                            if(item->eq(@"Quit")) {
+                                [NSApp terminate:nil];
+                            }
+                            else {
+                                NSLog(@"%@",item->name());
+                            }
+                        }
+                    }
+                    else if(type==MenuType::SLIDER||type==MenuType::RADIOBUTTON||type==MenuType::CHECKBOX) {
+                        NSLog(@"%@,%f",item->name(),item->value());
+                    }
+                }
+            })
+            ->addItem(@"slider",MenuType::SLIDER,@"{'min':0.0,'max':1.0,'value':0.5,'label':false}")
+            ->hr()
+            ->addItem(@"Quit",MenuType::TEXT,@"{'key':'q'}");
             
             if(this->layer->isInit()) {
             
