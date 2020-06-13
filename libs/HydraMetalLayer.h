@@ -71,12 +71,6 @@ class HydraMetalLayer : public MetalLayer {
 		double _starttime;
 		
 	public:
-
-#ifdef HYDRA_SYNTH_SLIDER
-	
-		NSMenu *menu() { return _menu; }; 
-
-#endif
 		
 		id<MTLTexture> o0() { return this->_o0; }
 		id<MTLTexture> o1() { return this->_o1;  }
@@ -122,8 +116,9 @@ class HydraMetalLayer : public MetalLayer {
 				else return (NSComparisonResult)NSOrderedSame;
 			}];
 			
-			// remove Menu
 #ifdef HYDRA_SYNTH_SLIDER
+
+			// remove Menu
 
 			for(int k=0; k<this->_items[mode].size(); k++) {
 				delete this->_items[mode][k].second;
@@ -326,7 +321,7 @@ class HydraMetalLayer : public MetalLayer {
 			return true;
 		} 
 		
-		bool init(int width,int height,std::vector<NSString *> shaders={@"defalt.metallib"},std::vector<NSString *> uniforms={@"u0.json"}, bool isGetBytes=false, bool isSubMenu = false) {
+		bool init(int width,int height,std::vector<NSString *> shaders={@"defalt.metallib"},std::vector<NSString *> uniforms={@"u0.json"}, bool isGetBytes=false) {
 
 #ifdef HYDRA_SYNTH_SLIDER
 			
@@ -347,8 +342,7 @@ class HydraMetalLayer : public MetalLayer {
 			this->_menu = [[NSMenu alloc] init];            
 			this->_statusItem.menu = this->_menu;
 			
-			if(isSubMenu==true) this->_isSubMenu = true; 
-			else if(uniforms.size()>=2) this->_isSubMenu = true;
+			if(uniforms.size()>=2) this->_isSubMenu = true;
 			
 			
 			if(this->_isSubMenu) {
