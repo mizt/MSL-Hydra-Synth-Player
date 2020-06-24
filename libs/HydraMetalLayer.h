@@ -40,6 +40,8 @@ class HydraMetalLayer : public MetalLayer {
 		NSMenu *_menu;
 		std::vector<std::vector<std::pair<NSString*,HydraSynthSlider::Slider *>>> _items;
 		
+		std::vector<std::vector<int>> _pid;
+		
 #endif	
 		
 		JSContext *_context; 
@@ -61,6 +63,8 @@ class HydraMetalLayer : public MetalLayer {
 		id<MTLTexture> _s3;
 		
 		std::vector<std::vector<id>> _params;
+
+
 		std::vector<NSString *> _uniformsPath;
 		std::vector<NSMutableArray *> _uniformsData;
 		
@@ -134,7 +138,10 @@ class HydraMetalLayer : public MetalLayer {
 			else {
 				this->_items[mode].clear();
 				[this->_menu removeAllItems];
+				
 			}
+			
+			this->_pid[mode].clear();
 			
 #endif
 
@@ -171,7 +178,7 @@ class HydraMetalLayer : public MetalLayer {
 							
 					[regex enumerateMatchesInString:js options:0 range:NSMakeRange(0,[js length]) usingBlock:^(NSTextCheckingResult *match, NSMatchingFlags flags, BOOL *stop){
 											
-						NSArray *arr = [[[[js stringByReplacingOccurrencesOfString:@" " withString:@""]
+						NSArray *arr = [[[[js stringByReplacingOccurrencesOfString:@"↓" withString:@""]
 							stringByReplacingOccurrencesOfString:@"slider(" withString:@""]
 								stringByReplacingOccurrencesOfString:@")" withString:@""] 
 									componentsSeparatedByString:@","];
@@ -181,16 +188,20 @@ class HydraMetalLayer : public MetalLayer {
 #ifdef HYDRA_SYNTH_SLIDER	
 
 							type = HydraUniformType::SliderType;	
-							// NSLog(@"%@, %f, [%f - %f]",list[k],[arr[0] doubleValue],[arr[1] doubleValue],[arr[2] doubleValue]);
 							
 							this->_items[mode].push_back(std::pair<NSString *,HydraSynthSlider::Slider *>(
 								list[k],
 								new HydraSynthSlider::Slider(list[k],[arr[0] doubleValue],[arr[1] doubleValue],[arr[2] doubleValue],YES,mode,k)
 							));
 							
+							this->_pid[mode].push_back(k);
 							
-							float *tmp = (float *)[(id<MTLBuffer>)this->_params[mode][k] contents];
-							tmp[0] = [arr[0] doubleValue];
+							
+							NSLog(@"%d, %lu, %@, %f, [%f - %f]",k,this->_pid.size()-1,list[k],[arr[0] doubleValue],[arr[1] doubleValue],[arr[2] doubleValue]);
+
+							
+							
+							((float *)[(id<MTLBuffer>)this->_params[mode][k] contents])[0] = [arr[0] doubleValue];
 
 							if(this->_isSubMenu) {
 								[this->_subMenu[mode] addItem:(this->_items[mode][this->_items[mode].size()-1].second)->item()];
@@ -225,6 +236,8 @@ class HydraMetalLayer : public MetalLayer {
 				}
 				else {
 					
+										
+					
 					float *tmp = (float *)[(id<MTLBuffer>)this->_params[mode][k] contents];
 					tmp[0] = [_uniformsData[mode][k] doubleValue];
 					
@@ -237,7 +250,40 @@ class HydraMetalLayer : public MetalLayer {
 					this->_uniformsType[mode][k] = type;
 				}				
 			}
-			
+
+			#ifdef HYDRA_SYNTH_SLIDER
+
+						// remove Menu
+
+						
+						
+						if(_isSubMenu==true) {
+							
+							[this->_subMenu[mode] addItem:[NSMenuItem separatorItem]];
+						}
+						else {
+							[this->_menu addItem:[NSMenuItem separatorItem]];
+							/*
+							this->_items[mode].push_back(std::pair<NSString *,HydraSynthSlider::Slider *>(
+								@"?",
+								new HydraSynthSlider::Slider(@"?",0,0,1,YES,mode,11111)
+							));
+							*/
+							
+							
+							HydraButtonMenuItem *randomize = [[HydraButtonMenuItem alloc] init:@"Random" :mode];
+							
+							if(this->_isSubMenu) {
+								[this->_subMenu[mode] addItem:randomize];
+							}
+							else {
+								[this->_menu addItem:randomize];
+							}	
+						}
+						
+			#endif
+
+
 		}
 		
 		bool reloadShader(unsigned int mode, dispatch_data_t data, NSString *uniform=@"u0.json") {
@@ -309,7 +355,8 @@ class HydraMetalLayer : public MetalLayer {
 	
 #ifdef HYDRA_SYNTH_SLIDER
 
-				this->_items.push_back(std::vector<std::pair<NSString*,HydraSynthSlider::Slider *>>());				
+				this->_items.push_back(std::vector<std::pair<NSString*,HydraSynthSlider::Slider *>>());		
+				this->_pid.push_back(std::vector<int>());		
 #endif
 				
 				this->_params.push_back(std::vector<id>());				
@@ -326,11 +373,53 @@ class HydraMetalLayer : public MetalLayer {
 #ifdef HYDRA_SYNTH_SLIDER
 			
 			HydraSynthSlider::setup(^(id me) {
+				
+				NSString *key = [me identifier];	
+				NSLog(@"%@",key);							
+
+				if([key caseInsensitiveCompare:@"Random"]==NSOrderedSame) {
+					
+					
+					dispatch_async(dispatch_get_main_queue(),^{
+						
+						HydraButtonMenuItemView *button = ((HydraButtonMenuItemView *)me);
+						int mode = [button mode];
+						
+						//NSLog(@"num %d",this->_items[mode].size());
+						
+						//for(int k=0; k<[this->_uniformsData[mode] count]; k++) {
+						for(int k=0; k<this->_items[mode].size(); k++) {
 							
-				HSSlider *slider = ((HSSlider *)me);
-				NSString *key = slider.identifier;								
-				float *tmp = (float *)[(id<MTLBuffer>)this->_params[slider.mode][slider.index] contents];
-				tmp[0] = [me doubleValue];
+							int uid = this->_pid[mode][k];
+							
+							if(this->_uniformsType[mode][uid]==HydraUniformType::SliderType) {
+								
+								(this->_items[mode][k].second)->randomize();
+								float *tmp = (float *)[(id<MTLBuffer>)this->_params[mode][uid] contents];
+								tmp[0] = (this->_items[mode][k].second)->value();
+								
+								NSLog(@"%@,%f,%f",this->_items[mode][k].first,tmp[0],(this->_items[mode][k].second)->value());
+								
+								
+							}
+							
+							
+							
+						}
+						
+					});
+					
+					
+					
+					
+				}
+				else {
+					HSSlider *slider = ((HSSlider *)me);
+					float *tmp = (float *)[(id<MTLBuffer>)this->_params[slider.mode][slider.index] contents];
+					tmp[0] = [me doubleValue];
+				}
+						
+				
 							
 			});
 
@@ -419,6 +508,8 @@ class HydraMetalLayer : public MetalLayer {
 			[renderEncoder useResource:this->_s1 usage:MTLResourceUsageSample];
 			[renderEncoder useResource:this->_s2 usage:MTLResourceUsageSample];
 			[renderEncoder useResource:this->_s3 usage:MTLResourceUsageSample];
+			
+			//NSLog(@"%d",[this->_uniformsData[mode] count]);
 				
 			for(int k=0; k<[this->_uniformsData[mode] count]; k++) {
 				[renderEncoder useResource:(id<MTLBuffer>)this->_params[mode][k] usage:MTLResourceUsageRead];

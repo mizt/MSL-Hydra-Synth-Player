@@ -98,7 +98,7 @@ class App {
             })
             ->addItem(@"slider",MenuType::SLIDER,@"{'min':0.0,'max':1.0,'value':0.5,'label':false}")
             ->hr()
-            ->addItem(@"Quit",MenuType::TEXT,@"{'key':'q'}");
+            ->addItem(@"Quit",MenuType::TEXT,@"{'key':''}");
             
             if(this->layer->isInit()) {
             
