@@ -1,11 +1,17 @@
-#define WIDTH 1280
-#define HEIGHT 720
+
 #define FPS 60.0
 
 #import <Cocoa/Cocoa.h>
 #import <MetalKit/MetalKit.h>
+#import <TargetConditionals.h>
 #import <vector>
 #import "./libs/HydraMetalLayer.h"
+
+#if TARGET_OS_OSX
+
+#define WIDTH 1280
+#define HEIGHT 720
+
 #import "./libs/Menu.h"
 
 class App {
@@ -238,3 +244,113 @@ int main(int argc, char *argv[]) {
         [app run];
     }
 }
+
+#else
+
+class App {
+  
+    private:
+        
+        UIWindow *window;
+        UIViewController *controller;
+        MetalView *view;
+    
+        HydraMetalLayer *layer;
+    
+        dispatch_source_t timer;
+             
+        unsigned int *o0 = nullptr;
+         
+        CGRect rect;
+    
+        dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+
+    
+    public:
+        
+        App() {
+            
+            // 834x1194(1668x2388)
+            
+            this->rect = CGRectMake(0,0,(int)([[UIScreen mainScreen] bounds].size.width),(int)([[UIScreen mainScreen] bounds].size.height));
+            
+            NSLog(@"%f,%f",this->rect.size.width,this->rect.size.height);
+            
+            this->o0 = new unsigned int[(int)this->rect.size.width*(int)this->rect.size.height];
+            
+            this->window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+            this->controller = [[UIViewController alloc] init];
+            
+            this->view = [[MetalView alloc] initWithFrame:this->rect];
+            this->view.multipleTouchEnabled=NO;
+            this->view.exclusiveTouch=YES;
+            
+            NSBundle *bundle = [NSBundle mainBundle];
+            
+            this->layer = new HydraMetalLayer((CAMetalLayer *)this->view.layer);
+            this->layer->init(rect.size.width,rect.size.height,
+                {[bundle pathForResource:@"s0" ofType:@"metallib"]},
+                {[bundle pathForResource:@"u0" ofType:@"json"]},
+                false
+            );
+                        
+            this->controller.view = this->view;
+            [this->window setRootViewController:controller];
+            [this->window makeKeyAndVisible];
+            
+            this->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_queue_create("ENTER_FRAME",0));
+            dispatch_source_set_timer(this->timer,dispatch_time(0,0),(1.0/FPS)*1000000000,0);
+            dispatch_source_set_event_handler(this->timer,^{
+                
+                int width  = this->rect.size.width;
+                int height = this->rect.size.height;
+                
+                [this->layer->o0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
+                
+                this->layer->update(^(id<MTLCommandBuffer> commandBuffer) {
+                    
+                    [this->layer->drawableTexture() getBytes:this->o0 bytesPerRow:(width<<2) fromRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0];
+                    
+                    this->layer->cleanup();
+                });
+            
+            });
+            if(this->timer) dispatch_resume(this->timer);
+
+        }
+    
+        ~App() {
+        
+            if(this->timer){
+                dispatch_source_cancel(this->timer);
+                this->timer = nullptr;
+            }
+                           
+            if(this->o0) delete[] this->o0;
+            
+        }
+    
+};
+
+
+@interface AppDelegate:UIResponder<UIApplicationDelegate> {
+    App *app;
+}
+@end
+
+@implementation AppDelegate
+
+-(BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    app = new App();
+    return YES;
+}
+
+@end
+
+int main(int argc, char * argv[]) {
+    @autoreleasepool {
+        return UIApplicationMain(argc,argv,nil,@"AppDelegate");
+    }
+}
+
+#endif
