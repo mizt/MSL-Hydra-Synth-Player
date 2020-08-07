@@ -6,6 +6,7 @@
 #import <MetalKit/MetalKit.h>
 #import <vector>
 #import "./libs/HydraMetalLayer.h"
+#import "./libs/Menu.h"
 
 class App {
     
@@ -16,6 +17,7 @@ class App {
         HydraMetalLayer *layer;
         
         dispatch_source_t timer;
+        
         unsigned int *o0 = nullptr;
         unsigned int *o1 = nullptr;
         unsigned int *o2 = nullptr;
@@ -31,7 +33,7 @@ class App {
         dispatch_fd_t fd;
         double timestamp = -1;
         NSString *path[2] = {
-            @"./MSL-Hydra-Synth/assets/o0.metallib",
+            @"./MSL-Hydra-Synth/assets/s0.metallib",
             @"./MSL-Hydra-Synth/assets/u0.json"
             //[[[NSBundle mainBundle] URLForResource:@"o0" withExtension:@"metallib"] path],
             //[[[NSBundle mainBundle] URLForResource:@"u0" withExtension:@"json"] path]
@@ -54,22 +56,50 @@ class App {
             this->o2 = new unsigned int[w*h]; 
             this->o3 = new unsigned int[w*h]; 
             */
+            
             this->s0 = new unsigned int[w*h]; 
             /*
             this->s1 = new unsigned int[w*h];  
             this->s2 = new unsigned int[w*h];  
             this->s3 = new unsigned int[w*h];  
             */
+            
             this->win = [[NSWindow alloc] initWithContentRect:rect styleMask:1|1<<2 backing:NSBackingStoreBuffered defer:NO];
             this->view = [[NSView alloc] initWithFrame:rect];
             [this->view setWantsLayer:YES];
-
+            
+            
             this->layer = new HydraMetalLayer();
             this->layer->init(rect.size.width,rect.size.height,
                 {path[0]},
                 {path[1]}
-                //,false,true
+                ,false
             );
+            
+            Menu::$()->on(^(id me,IMenuItem *item){
+                if(item) {
+                    MenuType type = item->type();
+                    if(type==MenuType::TEXT||type==MenuType::BUTTON) {
+                        if(item->isParent()) {
+                            
+                        }
+                        else {
+                            if(item->eq(@"Quit")) {
+                                [NSApp terminate:nil];
+                            }
+                            else {
+                                NSLog(@"%@",item->name());
+                            }
+                        }
+                    }
+                    else if(type==MenuType::SLIDER||type==MenuType::RADIOBUTTON||type==MenuType::CHECKBOX) {
+                        NSLog(@"%@,%f",item->name(),item->value());
+                    }
+                }
+            })
+            //->addItem(@"slider",MenuType::SLIDER,@"{'min':0.0,'max':1.0,'value':0.5,'label':false}")
+            //->hr()
+            ->addItem(@"Quit",MenuType::TEXT,@"{'key':''}");
             
             if(this->layer->isInit()) {
             
@@ -86,6 +116,7 @@ class App {
                 dispatch_source_set_timer(this->timer,dispatch_time(0,0),(1.0/FPS)*1000000000,0);
                 dispatch_source_set_event_handler(this->timer,^{
                     
+                                        
                     int width  = this->rect.size.width;
                     int height = this->rect.size.height;
                                             
@@ -171,7 +202,7 @@ class App {
         ~App() {
             
             
-            if(this->timer){
+            if(this->timer) {
                 dispatch_source_cancel(this->timer);
                 this->timer = nullptr;
             }
