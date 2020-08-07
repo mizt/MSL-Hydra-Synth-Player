@@ -1,3 +1,17 @@
+#import <TargetConditionals.h>
+
+#if TARGET_OS_OSX
+
+#else
+
+	@interface MetalView:UIView @end
+	@implementation MetalView
+	+(Class)layerClass { return [CAMetalLayer class]; }
+	@end
+
+#endif
+
+
 namespace Plane {
 	
 	static const int VERTICES_SIZE = 4;
@@ -27,7 +41,7 @@ class MetalLayer {
 		
 		id<CAMetalDrawable> _metalDrawable;
 		
-		id<MTLTexture> _drawabletexture;    		
+		id<MTLTexture> _drawabletexture;
 			
 		id<MTLBuffer> _verticesBuffer;
 		id<MTLBuffer> _indicesBuffer;
@@ -65,8 +79,8 @@ class MetalLayer {
 				this->_renderPipelineDescriptor.push_back([MTLRenderPipelineDescriptor new]);
 				if(!this->_renderPipelineDescriptor[k]) return nil;
 				this->_argumentEncoder.push_back([fragmentFunction newArgumentEncoderWithBufferIndex:0]);
-				this->_renderPipelineDescriptor[k].depthAttachmentPixelFormat      = MTLPixelFormatInvalid;
-				this->_renderPipelineDescriptor[k].stencilAttachmentPixelFormat    = MTLPixelFormatInvalid;
+				this->_renderPipelineDescriptor[k].depthAttachmentPixelFormat = MTLPixelFormatInvalid;
+				this->_renderPipelineDescriptor[k].stencilAttachmentPixelFormat = MTLPixelFormatInvalid;
 				this->_renderPipelineDescriptor[k].colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
 				if(this->_isGetBytes) {
 					this->_renderPipelineDescriptor[k].colorAttachments[0].blendingEnabled = NO;
@@ -76,7 +90,7 @@ class MetalLayer {
 				}
 				this->_renderPipelineDescriptor[k].sampleCount = 1;
 				this->_renderPipelineDescriptor[k].vertexFunction   = vertexFunction;
-				this->_renderPipelineDescriptor[k].fragmentFunction = fragmentFunction;	
+				this->_renderPipelineDescriptor[k].fragmentFunction = fragmentFunction;
 				NSError *error = nil;
 				this->_renderPipelineState.push_back([this->_device newRenderPipelineStateWithDescriptor:this->_renderPipelineDescriptor[k] error:&error]);
 				if(error||!this->_renderPipelineState[k]) return true;
@@ -90,7 +104,7 @@ class MetalLayer {
 			if(!vertexFunction) return nil;
 			id<MTLFunction> fragmentFunction = [this->_library[index] newFunctionWithName:@"fragmentShader"];
 			if(!fragmentFunction) return nil;
-			this->_argumentEncoder[index] = [fragmentFunction newArgumentEncoderWithBufferIndex:0];			
+			this->_argumentEncoder[index] = [fragmentFunction newArgumentEncoderWithBufferIndex:0];
 			this->_renderPipelineDescriptor[index].sampleCount = 1;
 			this->_renderPipelineDescriptor[index].vertexFunction   = vertexFunction;
 			this->_renderPipelineDescriptor[index].fragmentFunction = fragmentFunction;
@@ -102,14 +116,24 @@ class MetalLayer {
 		
 	public:
 		
-		MetalLayer() {}
+		MetalLayer(CAMetalLayer *layer=nil) {
+
+			if(layer) {
+				this->_metalLayer = layer;
+			}
+			else {
+				this->_metalLayer = [CAMetalLayer layer];
+			}
+		}
+	
 		~MetalLayer() {
+			
 			NSLog(@"~MetalLayer");
 			
-			id<MTLCommandBuffer> commandBuffer = [this->_commandQueue commandBuffer];
+			//id<MTLCommandBuffer> commandBuffer = [this->_commandQueue commandBuffer];
 			//[commandBuffer presentDrawable:nil];
 			this->_commandQueue = nil;
-			this->_metalDrawable = nil; 
+			this->_metalDrawable = nil;
 			this->_metalLayer = nil;
 			this->_drawabletexture = nil;
 			//if(this->_verticesBuffer) this->_verticesBuffer = nil;
@@ -123,10 +147,10 @@ class MetalLayer {
 			if(!this->_verticesBuffer) return false;
 			
 			this->_indicesBuffer = [this->_device newBufferWithBytes:Plane::indices length:Plane::INDICES_SIZE*sizeof(short) options:MTLResourceOptionCPUCacheModeDefault];
-			if(!this->_indicesBuffer) return false;			
+			if(!this->_indicesBuffer) return false;
 			
 			return true;
-		} 
+		}
 		
 		virtual id<MTLCommandBuffer> setupCommandBuffer(int mode) {
 			
@@ -149,28 +173,50 @@ class MetalLayer {
 			return commandBuffer;
 		}
 		
-		virtual bool init(int width,int height,std::vector<NSString *> shaders={@"defalt.metallib"}, bool isGetBytes=false) {
+		virtual bool init(int width,int height,std::vector<NSString *> shaders={@"s0.metallib"}, bool isGetBytes=false) {
+			
 			this->_frame.size.width  = this->_width  = width;
 			this->_frame.size.height = this->_height = height;
-			this->_metalLayer = [CAMetalLayer layer];
+			
 			this->_device = MTLCreateSystemDefaultDevice();
+			
 			this->_metalLayer.device = this->_device;
 			this->_metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+			
+#if TARGET_OS_OSX
+
 			this->_metalLayer.colorspace =  [[NSScreen mainScreen] colorSpace].CGColorSpace;//CGColorSpaceCreateDeviceRGB();
+#else
+			this->_metalLayer.colorspace = CGColorSpaceCreateDeviceRGB();
+#endif
+			
 			this->_metalLayer.opaque = NO;
 			this->_metalLayer.framebufferOnly = NO;
+			
+#if TARGET_OS_OSX
+
 			this->_metalLayer.displaySyncEnabled = YES;
+
+#endif
+			
+			
 			this->_metalLayer.drawableSize = CGSizeMake(this->_width,this->_height);
 			this->_commandQueue = [this->_device newCommandQueue];
 			if(!this->_commandQueue) return false;
+			
 			NSError *error = nil;
+			
 			for(int k=0; k<shaders.size(); k++) {
 				// [NSString stringWithFormat:@"%@/%@",[[NSBundle mainBundle] bundlePath],shaders[k]]
 				this->_library.push_back([this->_device newLibraryWithFile:shaders[k] error:&error]);
-				if(error||!this->_library[this->_library.size()-1]) return false;
+				if(error||!this->_library[this->_library.size()-1]) {
+					//NSLog(@"%@",error);
+					return false;
+				}
 			}
 			this->_isGetBytes = isGetBytes;
-			if(this->setupShader()) return false;	
+						
+			if(this->setupShader()) return false;
 			this->_isInit = this->setup();
 			return this->_isInit;
 		}
@@ -180,15 +226,15 @@ class MetalLayer {
 		}
 
 		void mode(unsigned int n) {
-			this->_mode = n; 
+			this->_mode = n;
 		}
 		
-		id<MTLTexture> drawableTexture() { 
-			return this->_drawabletexture; 
+		id<MTLTexture> drawableTexture() {
+			return this->_drawabletexture;
 		}
 		
-		void cleanup() { 
-			this->_metalDrawable = nil; 
+		void cleanup() {
+			this->_metalDrawable = nil;
 		}
 		
 		bool reloadShader(dispatch_data_t data, unsigned int index) {
@@ -221,7 +267,7 @@ class MetalLayer {
 		
 		void update(void (^onComplete)(id<MTLCommandBuffer>)) {
 			int mode = this->_mode;
-			if(mode>=this->_library.size()) mode = this->_library.size()-1;
+			if(mode>=this->_library.size()) mode = (int)(this->_library.size()-1);
 			if(this->_renderPipelineState[mode]) {
 				id<MTLCommandBuffer> commandBuffer = this->prepareCommandBuffer(mode);
 				if(commandBuffer) {
@@ -234,5 +280,5 @@ class MetalLayer {
 		
 		CAMetalLayer *layer() {
 			return this->_metalLayer;
-		}	
+		}
 };
