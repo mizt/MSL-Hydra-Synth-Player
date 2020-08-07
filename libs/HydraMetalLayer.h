@@ -252,36 +252,29 @@ class HydraMetalLayer : public MetalLayer {
 				}
 			}
 
-			#ifdef HYDRA_SYNTH_SLIDER
-
-						// remove Menu
-
-						
-						
-						if(_isSubMenu==true) {
-							
-							[this->_subMenu[mode] addItem:[NSMenuItem separatorItem]];
-						}
-						else {
-							
-							if(this->_items[mode].size()>0) {
-								[this->_menu addItem:[NSMenuItem separatorItem]];
+#ifdef HYDRA_SYNTH_SLIDER
 								
-								HydraButtonMenuItem *randomize = [[HydraButtonMenuItem alloc] init:@"Random" :mode];
-								
-								if(this->_isSubMenu) {
-									[this->_subMenu[mode] addItem:randomize];
-								}
-								else {
-									[this->_menu addItem:randomize];
-								}
-							}
-							}
-							
-							
+			if(_isSubMenu==true) {
+				
+				[this->_subMenu[mode] addItem:[NSMenuItem separatorItem]];
+			}
+			else {
+				
+				if(this->_items[mode].size()>0) {
+					[this->_menu addItem:[NSMenuItem separatorItem]];
+					
+					HydraButtonMenuItem *randomize = [[HydraButtonMenuItem alloc] init:@"Random" :mode];
+					
+					if(this->_isSubMenu) {
+						[this->_subMenu[mode] addItem:randomize];
+					}
+					else {
+						[this->_menu addItem:randomize];
+					}
+				}
+			}
 						
-			#endif
-
+#endif
 
 		}
 		
@@ -300,7 +293,6 @@ class HydraMetalLayer : public MetalLayer {
 			
 			MTLTextureDescriptor *texDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:this->_width height:this->_height mipmapped:NO];
 			if(!texDesc) return false;
-			
 			
 			this->_texcoordBuffer = [_device newBufferWithBytes:Plane::textureCoordinateData length:6*sizeof(float)*2 options:MTLResourceOptionCPUCacheModeDefault];
 			if(!_texcoordBuffer) return nil;
@@ -391,7 +383,7 @@ class HydraMetalLayer : public MetalLayer {
 								float *tmp = (float *)[(id<MTLBuffer>)this->_params[mode][uid] contents];
 								tmp[0] = (this->_items[mode][k].second)->value();
 								
-								NSLog(@"%@,%f,%f",this->_items[mode][k].first,tmp[0],(this->_items[mode][k].second)->value());
+								//NSLog(@"%@,%f,%f",this->_items[mode][k].first,tmp[0],(this->_items[mode][k].second)->value());
 								
 							}
 						}
@@ -406,7 +398,6 @@ class HydraMetalLayer : public MetalLayer {
 												
 			});
 
-						
 			this->_statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
 			[this->_statusItem.button setEnabled:YES];
 			[this->_statusItem.button setTitle:@"↓"];
@@ -415,7 +406,6 @@ class HydraMetalLayer : public MetalLayer {
 			this->_statusItem.menu = this->_menu;
 			
 			if(uniforms.size()>=2) this->_isSubMenu = true;
-			
 			
 			if(this->_isSubMenu) {
 				for(int k=0; k<uniforms.size(); k++) {
@@ -436,7 +426,6 @@ class HydraMetalLayer : public MetalLayer {
 			
 		}
 		
-			
 		id<MTLCommandBuffer> setupCommandBuffer(int mode) {
 									
 			id<MTLCommandBuffer> commandBuffer = [this->_commandQueue commandBuffer];
@@ -445,18 +434,11 @@ class HydraMetalLayer : public MetalLayer {
 			timeBuffer[0] = CFAbsoluteTimeGetCurrent()-this->_starttime;
 			
 			float *mouseBuffer = (float *)[this->_mouseBuffer contents];
-		   
-			
-			
 			
 #if TARGET_OS_OSX
 
 			double x = _frame.origin.x;
 			double y = _frame.origin.y;
-			/*
-			double w = _frame.size.width;
-			double h = _frame.size.height;
-			*/
 
 			NSPoint mouseLoc = [NSEvent mouseLocation];
 			mouseBuffer[0] = (mouseLoc.x-x);
@@ -464,8 +446,8 @@ class HydraMetalLayer : public MetalLayer {
 			
 #else
 			
-			mouseBuffer[0] = 0;
-			mouseBuffer[1] = 0;
+			mouseBuffer[0] = Touch::x;
+			mouseBuffer[1] = Touch::y;
 			
 #endif
 			
@@ -523,7 +505,7 @@ class HydraMetalLayer : public MetalLayer {
 		}
 		
 		HydraMetalLayer(CAMetalLayer *layer=nil) : MetalLayer(layer) {
-				   
+			
 			NSLog(@"HydraMetalLayer");
 		}
 		
