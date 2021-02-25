@@ -1,4 +1,3 @@
-
 #define FPS 60.0
 
 #import <Cocoa/Cocoa.h>
@@ -6,6 +5,7 @@
 #import <TargetConditionals.h>
 #import <vector>
 #import "./libs/HydraMetalLayer.h"
+#import "./libs/MTLReadPixels.h"
 
 #if TARGET_OS_OSX
 
@@ -48,6 +48,7 @@ class App {
         
         dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
 
+        MTLReadPixels *ReadPixels;
         
     public:
                 
@@ -55,6 +56,8 @@ class App {
             
             int w = rect.size.width;
             int h = rect.size.height;
+            
+            this->ReadPixels = new MTLReadPixels(w,h);
             
             this->o0 = new unsigned int[w*h]; 
             /*
@@ -122,11 +125,10 @@ class App {
                 dispatch_source_set_timer(this->timer,dispatch_time(0,0),(1.0/FPS)*1000000000,0);
                 dispatch_source_set_event_handler(this->timer,^{
                     
-                                        
                     int width  = this->rect.size.width;
                     int height = this->rect.size.height;
-                                            
-                     [this->layer->o0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
+                                                                
+                    [this->layer->o0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
                     /*
                     [this->layer->o1() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
                     [this->layer->o2() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
@@ -180,11 +182,12 @@ class App {
                                         
                     this->layer->update(^(id<MTLCommandBuffer> commandBuffer) {
                         
-                        [this->layer->drawableTexture() getBytes:this->o0 bytesPerRow:(width<<2) fromRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0];
+                        this->ReadPixels->setDrawableTexture(this->layer->drawableTexture());
+                        unsigned int *bytes = this->ReadPixels->bytes();
                         
                         for(int i=0; i<height; i++) {
                             for(int j=0; j<width; j++) {
-                                unsigned int argb = this->o0[i*width+j];
+                                unsigned int argb = bytes[i*width+j];
                                 this->o0[i*width+j] = (0xFF00FF00&argb)|((argb>>16)&0xFF)|((argb&0xFF)<<16);
                             }
                         }
@@ -269,9 +272,7 @@ class App {
     public:
         
         App() {
-            
-            // 834x1194(1668x2388)
-            
+                        
             this->rect = CGRectMake(0,0,(int)([[UIScreen mainScreen] bounds].size.width),(int)([[UIScreen mainScreen] bounds].size.height));
             
             NSLog(@"%f,%f",this->rect.size.width,this->rect.size.height);

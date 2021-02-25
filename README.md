@@ -11,7 +11,7 @@ The following two files uses [https://hydra-editor-v1.glitch.me/?sketch_id=examp
 
 ### Build Command Line Tool & Run
 
-	$ xcrun clang++ -ObjC++ -lc++ -fobjc-arc -O3 -std=c++17 -Wc++17-extensions -framework Cocoa -framework Metal -framework Quartz -framework JavascriptCore ./libs/MetalView.mm ./Hydra-Synth-Player.mm -o ./Hydra-Synth-Player
+	$ xcrun clang++ -ObjC++ -lc++ -fobjc-arc -O3 -std=c++17 -Wc++17-extensions -framework Cocoa -framework Metal -framework Quartz -framework JavascriptCore ./Hydra-Synth-Player.mm -o ./Hydra-Synth-Player
 	$ ./Hydra-Synth-Player
 
 ### Extension
