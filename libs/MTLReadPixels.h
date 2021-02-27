@@ -32,7 +32,7 @@
 					this->_bytes[k] = 0xFF000000;
 				}
 	
-				NSString *metallib = [NSString stringWithFormat:@"%@/%s",
+				NSString *metallib = [NSString stringWithFormat:@"%@/libs/%s",
 					[[NSBundle mainBundle] bundlePath],
 					"copy.metallib"
 				];
