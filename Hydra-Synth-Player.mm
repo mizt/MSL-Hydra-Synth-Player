@@ -15,7 +15,7 @@
 #define WIDTH 1280
 #define HEIGHT 720
 
-#import "./libs/Menu.h"
+//#import "./libs/Menu.h"
 
 class App {
     
@@ -62,24 +62,24 @@ class App {
             
             this->ReadPixels = new MTLReadPixels(w,h);
             
-            this->o0 = new unsigned int[w*h]; 
+            this->o0 = new unsigned int[w*h];
             /*
-            this->o1 = new unsigned int[w*h]; 
-            this->o2 = new unsigned int[w*h]; 
-            this->o3 = new unsigned int[w*h]; 
+            this->o1 = new unsigned int[w*h];
+            this->o2 = new unsigned int[w*h];
+            this->o3 = new unsigned int[w*h];
             */
             
-            this->s0 = new unsigned int[w*h]; 
+            this->s0 = new unsigned int[w*h];
             /*
-            this->s1 = new unsigned int[w*h];  
-            this->s2 = new unsigned int[w*h];  
-            this->s3 = new unsigned int[w*h];  
+            this->s1 = new unsigned int[w*h];
+            this->s2 = new unsigned int[w*h];
+            this->s3 = new unsigned int[w*h];
             */
             
             this->win = [[NSWindow alloc] initWithContentRect:rect styleMask:1|1<<2 backing:NSBackingStoreBuffered defer:NO];
+           
             this->view = [[NSView alloc] initWithFrame:rect];
             [this->view setWantsLayer:YES];
-            
             
             this->layer = new HydraMetalLayer<Plane>();
             this->layer->init(rect.size.width,rect.size.height,
@@ -87,6 +87,8 @@ class App {
                 {path[1]}
                 ,false
             );
+            
+#ifdef MENU_UI
             
             Menu::$()->on(^(id me,IMenuItem *item){
                 if(item) {
@@ -112,6 +114,8 @@ class App {
             //->addItem(@"slider",MenuType::SLIDER,@"{'min':0.0,'max':1.0,'value':0.5,'label':false}")
             //->hr()
             ->addItem(@"Quit",MenuType::TEXT,@"{'key':''}");
+
+#endif
             
             if(this->layer->isInit()) {
             
@@ -120,16 +124,17 @@ class App {
                 [[this->win contentView] addSubview:this->view];
                 
                 for(int k=0; k<w*h; k++) {
-                    this->o0[k] = 0xFF000000; // ABGR 
-                    this->s0[k] = 0xFFFF0000; // ABGR 
+                    this->o0[k] = 0xFF000000; // ABGR
+                    this->s0[k] = 0xFFFF0000; // ABGR
                 }
                 
                 this->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_queue_create("ENTER_FRAME",0));
                 dispatch_source_set_timer(this->timer,dispatch_time(0,0),(1.0/FPS)*1000000000,0);
                 dispatch_source_set_event_handler(this->timer,^{
                     
-                    //NSLog(@"%@",NSStringFromRect([this->win frame]));
-                    this->layer->frame([this->win frame]);
+                    dispatch_async(dispatch_get_main_queue(),^{
+                        this->layer->frame([this->win frame]);
+                    });
                     
                     int width  = this->rect.size.width;
                     int height = this->rect.size.height;
@@ -153,7 +158,7 @@ class App {
                         
                         if(this->timestamp==-1) { // initalize
                              this->timestamp = date;
-                        } 
+                        }
                         else if(this->timestamp!=date) { // &&this->timestamp[1]!=date[1]) {
                                                     
                             this->timestamp = date;
@@ -175,7 +180,7 @@ class App {
                                     dispatch_read(fd,size[0],dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^(dispatch_data_t d,int e) {
                                         
                                         this->layer->reloadShader(0,d,this->path[1]);
-                                        close(this->fd);                                    
+                                        close(this->fd);
                                         dispatch_semaphore_signal(this->semaphore);
 
                                     });
@@ -204,6 +209,7 @@ class App {
                     static dispatch_once_t oncePredicate;
                     dispatch_once(&oncePredicate,^{
                         dispatch_async(dispatch_get_main_queue(),^{
+                            
                             CGRect screen = [[NSScreen mainScreen] frame];
                             CGRect rect = [this->win frame];
                             CGRect center = CGRectMake(
@@ -212,13 +218,14 @@ class App {
                                 rect.size.width,rect.size.height
                             );
                             [this->win setFrame:center display:YES];
+                            
                             [this->win makeKeyAndOrderFront:nil];
                         });
                     });
                     
                 });
-                if(this->timer) dispatch_resume(this->timer);      
-            }          
+                if(this->timer) dispatch_resume(this->timer);
+            }
         }
         
         ~App() {
@@ -368,3 +375,4 @@ int main(int argc, char * argv[]) {
 }
 
 #endif
+
