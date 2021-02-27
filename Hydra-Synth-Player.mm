@@ -1,9 +1,12 @@
 #define FPS 60.0
 
 #import <Cocoa/Cocoa.h>
-#import <MetalKit/MetalKit.h>
+#import <Metal/Metal.h>
+#import <QuartzCore/QuartzCore.h>
 #import <TargetConditionals.h>
 #import <vector>
+#import "./libs/MetalView.h"
+#import "./libs/Plane.h"
 #import "./libs/HydraMetalLayer.h"
 #import "./libs/MTLReadPixels.h"
 
@@ -20,7 +23,7 @@ class App {
         
         NSWindow *win;
         NSView *view;
-        HydraMetalLayer *layer;
+        HydraMetalLayer<Plane> *layer;
         
         dispatch_source_t timer;
         
@@ -39,8 +42,8 @@ class App {
         dispatch_fd_t fd;
         double timestamp = -1;
         NSString *path[2] = {
-            @"./MSL-Hydra-Synth/assets/s0.metallib",
-            @"./MSL-Hydra-Synth/assets/u0.json"
+            @"MSL-Hydra-Synth/assets/s0.metallib",
+            @"MSL-Hydra-Synth/assets/u0.json"
             //[[[NSBundle mainBundle] URLForResource:@"o0" withExtension:@"metallib"] path],
             //[[[NSBundle mainBundle] URLForResource:@"u0" withExtension:@"json"] path]
         };
@@ -78,7 +81,7 @@ class App {
             [this->view setWantsLayer:YES];
             
             
-            this->layer = new HydraMetalLayer();
+            this->layer = new HydraMetalLayer<Plane>();
             this->layer->init(rect.size.width,rect.size.height,
                 {path[0]},
                 {path[1]}
@@ -124,6 +127,9 @@ class App {
                 this->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_queue_create("ENTER_FRAME",0));
                 dispatch_source_set_timer(this->timer,dispatch_time(0,0),(1.0/FPS)*1000000000,0);
                 dispatch_source_set_event_handler(this->timer,^{
+                    
+                    //NSLog(@"%@",NSStringFromRect([this->win frame]));
+                    this->layer->frame([this->win frame]);
                     
                     int width  = this->rect.size.width;
                     int height = this->rect.size.height;
@@ -198,7 +204,14 @@ class App {
                     static dispatch_once_t oncePredicate;
                     dispatch_once(&oncePredicate,^{
                         dispatch_async(dispatch_get_main_queue(),^{
-                            [this->win center];
+                            CGRect screen = [[NSScreen mainScreen] frame];
+                            CGRect rect = [this->win frame];
+                            CGRect center = CGRectMake(
+                                (screen.size.width-rect.size.width)*0.5,
+                                (screen.size.height-(rect.size.height))*0.5,
+                                rect.size.width,rect.size.height
+                            );
+                            [this->win setFrame:center display:YES];
                             [this->win makeKeyAndOrderFront:nil];
                         });
                     });
@@ -258,7 +271,7 @@ class App {
         UIViewController *controller;
         MetalView *view;
     
-        HydraMetalLayer *layer;
+        HydraMetalLayer<Plane> *layer;
     
         dispatch_source_t timer;
              
@@ -288,7 +301,7 @@ class App {
             
             NSBundle *bundle = [NSBundle mainBundle];
             
-            this->layer = new HydraMetalLayer((CAMetalLayer *)this->view.layer);
+            this->layer = new HydraMetalLayer<Plane>((CAMetalLayer *)this->view.layer);
             this->layer->init(rect.size.width,rect.size.height,
                 {[bundle pathForResource:@"s0" ofType:@"metallib"]},
                 {[bundle pathForResource:@"u0" ofType:@"json"]},
@@ -305,7 +318,7 @@ class App {
                 
                 int width  = this->rect.size.width;
                 int height = this->rect.size.height;
-                
+                                
                 [this->layer->o0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
                 
                 this->layer->update(^(id<MTLCommandBuffer> commandBuffer) {

@@ -1,4 +1,3 @@
-#import "MetalLayer.h"
 #import <JavascriptCore/JavascriptCore.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
@@ -7,20 +6,15 @@
 #import <vector>
 #import <TargetConditionals.h>
 
-//#import "HydraSynthSlider.h"
+#import "../libs/MetalBaseLayer.h"
 
-#define OFFSET_UNIFORM 11
+#if TARGET_OS_OSX
 
-namespace Plane {
-	static const float textureCoordinateData[6][2] = {
-		{ 0.f, 0.f },
-		{ 1.f, 0.f },
-		{ 0.f, 1.f },
-		{ 1.f, 0.f },
-		{ 0.f, 1.f },
-		{ 1.f, 1.f }
-	};
-}
+	//#import "HydraSynthSlider.h"
+
+#endif
+
+#define HYDRA_OFFSET_UNIFORM 11
 
 enum HydraUniformType {
 	DoubleType = 0,
@@ -28,7 +22,8 @@ enum HydraUniformType {
 	SliderType
 };
 
-class HydraMetalLayer : public MetalLayer {
+template <typename T>
+class HydraMetalLayer : public MetalBaseLayer<T> {
 	
 	private:
 		
@@ -86,8 +81,16 @@ class HydraMetalLayer : public MetalLayer {
 		id<MTLTexture> s1() { return this->_s1;  }
 		id<MTLTexture> s2() { return this->_s2;  }
 		id<MTLTexture> s3() { return this->_s3;  }
-		
-		void set(int mode) {
+    
+        void frame(CGRect rect) {
+            NSPoint mouseLoc = [NSEvent mouseLocation];
+            
+            float *mouseBuffer = (float *)[this->_mouseBuffer contents];
+            mouseBuffer[0] = mouseLoc.x-rect.origin.x;
+            mouseBuffer[1] = (rect.size.height-1)-(mouseLoc.y-rect.origin.y);
+        }
+            
+		void set(unsigned int mode) {
 
 			this->_argumentEncoderBuffer.push_back([this->_device newBufferWithLength:sizeof(float)*[this->_argumentEncoder[mode] encodedLength] options:MTLResourceOptionCPUCacheModeDefault]);
 
@@ -156,12 +159,12 @@ class HydraMetalLayer : public MetalLayer {
 				}
 				
 				if(this->_params[mode].size()<=k) {
-					this->_params[mode].push_back((id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault]);
-					[this->_argumentEncoder[mode] setBuffer:(id<MTLBuffer>)this->_params[mode][k] offset:0 atIndex:OFFSET_UNIFORM+k];
+					this->_params[mode].push_back((id)[this->_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault]);
+					[this->_argumentEncoder[mode] setBuffer:(id<MTLBuffer>)this->_params[mode][k] offset:0 atIndex:HYDRA_OFFSET_UNIFORM+k];
 				}
 				else {
-					this->_params[mode][k] = (id)[_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
-					[this->_argumentEncoder[mode] setBuffer:(id<MTLBuffer>)this->_params[mode][k] offset:0 atIndex:OFFSET_UNIFORM+k];
+					this->_params[mode][k] = (id)[this->_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
+					[this->_argumentEncoder[mode] setBuffer:(id<MTLBuffer>)this->_params[mode][k] offset:0 atIndex:HYDRA_OFFSET_UNIFORM+k];
 				}
 			}
 									
@@ -280,7 +283,7 @@ class HydraMetalLayer : public MetalLayer {
 		
 		bool reloadShader(unsigned int mode, dispatch_data_t data, NSString *uniform=@"u0.json") {
 			this->_uniformsPath[mode] = uniform;
-			bool ret = MetalLayer::reloadShader(data,mode);
+			bool ret = MetalBaseLayer<T>::reloadShader(data,mode);
 			this->set(mode);
 			return ret;
 		}
@@ -294,7 +297,7 @@ class HydraMetalLayer : public MetalLayer {
 			MTLTextureDescriptor *texDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:this->_width height:this->_height mipmapped:NO];
 			if(!texDesc) return false;
 			
-			this->_texcoordBuffer = [_device newBufferWithBytes:Plane::textureCoordinateData length:6*sizeof(float)*2 options:MTLResourceOptionCPUCacheModeDefault];
+			this->_texcoordBuffer = [this->_device newBufferWithBytes:this->_data->texcoord length:this->_data->TEXCOORD_SIZE*sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
 			if(!_texcoordBuffer) return nil;
 		
 			this->_timeBuffer = [this->_device newBufferWithLength:sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
@@ -336,7 +339,7 @@ class HydraMetalLayer : public MetalLayer {
 			this->_s3 = [this->_device newTextureWithDescriptor:texDesc];
 			if(!this->_s3)  return false;
 		
-			if(MetalLayer::setup()==false) return false;
+			if(MetalBaseLayer<T>::setup()==false) return false;
 						
 			for(int k=0; k<this->_library.size(); k++) {
 				
@@ -422,30 +425,23 @@ class HydraMetalLayer : public MetalLayer {
 
 			for(int k=0; k<uniforms.size(); k++) this->_uniformsPath.push_back(uniforms[k]);
 			
-			return MetalLayer::init(width,height,shaders,isGetBytes);
+			return MetalBaseLayer<T>::init(width,height,shaders,isGetBytes);
 			
 		}
+    
 		
-		id<MTLCommandBuffer> setupCommandBuffer(int mode) {
+		id<MTLCommandBuffer> setupCommandBuffer(unsigned int mode) {
 									
 			id<MTLCommandBuffer> commandBuffer = [this->_commandQueue commandBuffer];
 			
 			float *timeBuffer = (float *)[this->_timeBuffer contents];
 			timeBuffer[0] = CFAbsoluteTimeGetCurrent()-this->_starttime;
 			
-			float *mouseBuffer = (float *)[this->_mouseBuffer contents];
+            float *mouseBuffer = (float *)[this->_mouseBuffer contents];
 			
-#if TARGET_OS_OSX
+#ifndef TARGET_OS_OSX
 
-			double x = _frame.origin.x;
-			double y = _frame.origin.y;
 
-			NSPoint mouseLoc = [NSEvent mouseLocation];
-			mouseBuffer[0] = (mouseLoc.x-x);
-			mouseBuffer[1] = (mouseLoc.y-y);
-			
-#else
-			
 			mouseBuffer[0] = Touch::x;
 			mouseBuffer[1] = Touch::y;
 			
@@ -496,7 +492,7 @@ class HydraMetalLayer : public MetalLayer {
 				
 			[renderEncoder setFragmentBuffer:this->_argumentEncoderBuffer[mode] offset:0 atIndex:0];
 			
-			[renderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:Plane::INDICES_SIZE indexType:MTLIndexTypeUInt16 indexBuffer:this->_indicesBuffer indexBufferOffset:0];
+			[renderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:this->_data->INDICES_SIZE indexType:MTLIndexTypeUInt16 indexBuffer:this->_indicesBuffer indexBufferOffset:0];
 			
 			[renderEncoder endEncoding];
 			[commandBuffer presentDrawable:this->_metalDrawable];
@@ -504,10 +500,20 @@ class HydraMetalLayer : public MetalLayer {
 			return commandBuffer;
 		}
 		
-		HydraMetalLayer(CAMetalLayer *layer=nil) : MetalLayer(layer) {
+		HydraMetalLayer(CAMetalLayer *layer=nil,int x=4, int y=4) : MetalBaseLayer<T>(x,y) {
 			
-			NSLog(@"HydraMetalLayer");
-		}
+            NSLog(@"HydraMetalLayer");
+            
+            if(layer) {
+                this->_metalLayer = layer;
+            }
+            else {
+                this->_metalLayer = [CAMetalLayer layer];
+            }
+            
+            this->_isArgumentEncoder = true;
+        
+        }
 		
 		~HydraMetalLayer() {
 			

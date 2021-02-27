@@ -1,62 +1,14 @@
-#import <TargetConditionals.h>
-
-#if TARGET_OS_OSX
-
-#else
-
-	@interface MetalView:UIView @end
-	@implementation MetalView
-		+(Class)layerClass { return [CAMetalLayer class]; }
-	@end
-	
-	namespace Touch {
-		int x = 0;
-		int y = 0;
-	}
-
-	- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
-		CGPoint locationPoint = [[touches anyObject] locationInView:self];
-		Touch::x = locationPoint.x;
-		Touch::y = locationPoint.y;
-	}
-
-	- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
-		CGPoint locationPoint = [[touches anyObject] locationInView:self];
-		Touch::x = locationPoint.x;
-		Touch::y = locationPoint.y;
-	}
-	 
-	- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
-		CGPoint locationPoint = [[touches anyObject] locationInView:self];
-		Touch::x = locationPoint.x;
-		Touch::y = locationPoint.y;
-	}
-	 
-	- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event {}
-
-#endif
-
-
-namespace Plane {
-	
-	static const int VERTICES_SIZE = 4;
-	static const float vertices[VERTICES_SIZE][4] = {
-		{ -1.f,-1.f, 0.f, 1.f },
-		{  1.f,-1.f, 0.f, 1.f },
-		{  1.f, 1.f, 0.f, 1.f },
-		{ -1.f, 1.f, 0.f, 1.f }
-	};
-	
-	static const int INDICES_SIZE = 6;
-	static const unsigned short indices[INDICES_SIZE] = {
-		0,1,2,
-		0,2,3
-	};
+namespace PixelFormat {
+	MTLPixelFormat ARGB = MTLPixelFormatRGBA8Unorm;
+	MTLPixelFormat ABGR = MTLPixelFormatBGRA8Unorm;
 }
 
-class MetalLayer {
+template <typename T>
+class MetalBaseLayer {
 	
 	protected:
+		
+		T *_data;
 		
 		CAMetalLayer *_metalLayer;
 		MTLRenderPassDescriptor *_renderPassDescriptor;
@@ -74,6 +26,8 @@ class MetalLayer {
 		std::vector<id<MTLLibrary>> _library;
 		std::vector<id<MTLRenderPipelineState>> _renderPipelineState;
 		std::vector<MTLRenderPipelineDescriptor *> _renderPipelineDescriptor;
+		
+		bool _isArgumentEncoder = false;
 		std::vector<id<MTLArgumentEncoder>> _argumentEncoder;
 			
 		bool _isInit = false;
@@ -82,8 +36,8 @@ class MetalLayer {
 		int _height;
 		CGRect _frame;
 
-		bool _isGetBytes = false;
-		int _mode = 0;
+		bool _isGetBytes = true;
+		unsigned int _mode = 0;
 		
 		virtual void setColorAttachment(MTLRenderPipelineColorAttachmentDescriptor *colorAttachment) {
 			colorAttachment.blendingEnabled = YES;
@@ -103,7 +57,9 @@ class MetalLayer {
 				if(!fragmentFunction) return nil;
 				this->_renderPipelineDescriptor.push_back([MTLRenderPipelineDescriptor new]);
 				if(!this->_renderPipelineDescriptor[k]) return nil;
-				this->_argumentEncoder.push_back([fragmentFunction newArgumentEncoderWithBufferIndex:0]);
+				
+				if(this->_isArgumentEncoder) this->_argumentEncoder.push_back([fragmentFunction newArgumentEncoderWithBufferIndex:0]);
+				
 				this->_renderPipelineDescriptor[k].depthAttachmentPixelFormat = MTLPixelFormatInvalid;
 				this->_renderPipelineDescriptor[k].stencilAttachmentPixelFormat = MTLPixelFormatInvalid;
 				this->_renderPipelineDescriptor[k].colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
@@ -115,7 +71,7 @@ class MetalLayer {
 				}
 				this->_renderPipelineDescriptor[k].sampleCount = 1;
 				this->_renderPipelineDescriptor[k].vertexFunction   = vertexFunction;
-				this->_renderPipelineDescriptor[k].fragmentFunction = fragmentFunction;
+				this->_renderPipelineDescriptor[k].fragmentFunction = fragmentFunction;	
 				NSError *error = nil;
 				this->_renderPipelineState.push_back([this->_device newRenderPipelineStateWithDescriptor:this->_renderPipelineDescriptor[k] error:&error]);
 				if(error||!this->_renderPipelineState[k]) return true;
@@ -129,7 +85,7 @@ class MetalLayer {
 			if(!vertexFunction) return nil;
 			id<MTLFunction> fragmentFunction = [this->_library[index] newFunctionWithName:@"fragmentShader"];
 			if(!fragmentFunction) return nil;
-			this->_argumentEncoder[index] = [fragmentFunction newArgumentEncoderWithBufferIndex:0];
+			if(this->_isArgumentEncoder) this->_argumentEncoder[index] = [fragmentFunction newArgumentEncoderWithBufferIndex:0];			
 			this->_renderPipelineDescriptor[index].sampleCount = 1;
 			this->_renderPipelineDescriptor[index].vertexFunction   = vertexFunction;
 			this->_renderPipelineDescriptor[index].fragmentFunction = fragmentFunction;
@@ -141,44 +97,29 @@ class MetalLayer {
 		
 	public:
 		
-		MetalLayer(CAMetalLayer *layer=nil) {
-
-			if(layer) {
-				this->_metalLayer = layer;
-			}
-			else {
-				this->_metalLayer = [CAMetalLayer layer];
-			}
+		T *data() { return this->_data; }
+		
+		MetalBaseLayer(int x=4,int y=4) {
+			this->_data = new T(x,y);
 		}
-	
-		~MetalLayer() {
-			
-			NSLog(@"~MetalLayer");
-			
-			//id<MTLCommandBuffer> commandBuffer = [this->_commandQueue commandBuffer];
-			//[commandBuffer presentDrawable:nil];
-			this->_commandQueue = nil;
-			this->_metalDrawable = nil;
-			this->_metalLayer = nil;
-			this->_drawabletexture = nil;
-			//if(this->_verticesBuffer) this->_verticesBuffer = nil;
-			//if(this->_indicesBuffer) this->_indicesBuffer = nil;
-			
+
+		~MetalBaseLayer() {
+			delete this->_data;
 		}
 		
 		virtual bool setup() {
 			
-			this->_verticesBuffer = [this->_device newBufferWithBytes:Plane::vertices length:Plane::VERTICES_SIZE*sizeof(float)*4 options:MTLResourceOptionCPUCacheModeDefault];
+			this->_verticesBuffer = [this->_device newBufferWithBytes:_data->vertices length:_data->VERTICES_SIZE*sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
 			if(!this->_verticesBuffer) return false;
 			
-			this->_indicesBuffer = [this->_device newBufferWithBytes:Plane::indices length:Plane::INDICES_SIZE*sizeof(short) options:MTLResourceOptionCPUCacheModeDefault];
-			if(!this->_indicesBuffer) return false;
+			this->_indicesBuffer = [this->_device newBufferWithBytes:_data->indices length:_data->INDICES_SIZE*sizeof(short) options:MTLResourceOptionCPUCacheModeDefault];
+			if(!this->_indicesBuffer) return false;			
 			
 			return true;
-		}
+		} 
 		
-		virtual id<MTLCommandBuffer> setupCommandBuffer(int mode) {
-			
+		virtual id<MTLCommandBuffer> setupCommandBuffer(unsigned int mode) {
+						
 			id<MTLCommandBuffer> commandBuffer = [this->_commandQueue commandBuffer];
 			MTLRenderPassColorAttachmentDescriptor *colorAttachment = this->_renderPassDescriptor.colorAttachments[0];
 			colorAttachment.texture = this->_metalDrawable.texture;
@@ -190,7 +131,7 @@ class MetalLayer {
 			[renderEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
 			[renderEncoder setRenderPipelineState:this->_renderPipelineState[mode]];
 			[renderEncoder setVertexBuffer:this->_verticesBuffer offset:0 atIndex:0];
-			[renderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:Plane::INDICES_SIZE indexType:MTLIndexTypeUInt16 indexBuffer:this->_indicesBuffer indexBufferOffset:0];
+			[renderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:_data->INDICES_SIZE indexType:MTLIndexTypeUInt16 indexBuffer:this->_indicesBuffer indexBufferOffset:0];
 			[renderEncoder endEncoding];
 			
 			[commandBuffer presentDrawable:this->_metalDrawable];
@@ -198,49 +139,50 @@ class MetalLayer {
 			return commandBuffer;
 		}
 		
-		virtual bool init(int width,int height,std::vector<NSString *> shaders={@"s0.metallib"}, bool isGetBytes=false) {
+		virtual bool init(int width,int height,std::vector<NSString *> shaders={@"default.metallib"}, bool isGetBytes=false) {
 			
 			this->_frame.size.width  = this->_width  = width;
 			this->_frame.size.height = this->_height = height;
-			
+			if(this->_metalLayer==nil) {
+				this->_metalLayer = [CAMetalLayer layer];
+			}			
 			this->_device = MTLCreateSystemDefaultDevice();
-			
 			this->_metalLayer.device = this->_device;
 			this->_metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-			
+
 #if TARGET_OS_OSX
 
-			this->_metalLayer.colorspace =  [[NSScreen mainScreen] colorSpace].CGColorSpace;//CGColorSpaceCreateDeviceRGB();
+			this->_metalLayer.colorspace = [[NSScreen mainScreen] colorSpace].CGColorSpace;//CGColorSpaceCreateDeviceRGB();
 #else
 			this->_metalLayer.colorspace = CGColorSpaceCreateDeviceRGB();
 #endif
 			
+			
 			this->_metalLayer.opaque = NO;
 			this->_metalLayer.framebufferOnly = NO;
-			
+
 #if TARGET_OS_OSX
 
 			this->_metalLayer.displaySyncEnabled = YES;
-
 #endif
 			
 			this->_metalLayer.drawableSize = CGSizeMake(this->_width,this->_height);
 			this->_commandQueue = [this->_device newCommandQueue];
 			if(!this->_commandQueue) return false;
-			
 			NSError *error = nil;
-			
 			for(int k=0; k<shaders.size(); k++) {
-				// [NSString stringWithFormat:@"%@/%@",[[NSBundle mainBundle] bundlePath],shaders[k]]
-				this->_library.push_back([this->_device newLibraryWithFile:shaders[k] error:&error]);
-				if(error||!this->_library[this->_library.size()-1]) {
-					//NSLog(@"%@",error);
+				id<MTLLibrary> lib= [this->_device newLibraryWithFile:[NSString stringWithFormat:@"%@/%@",[[NSBundle mainBundle] resourcePath],shaders[k]] error:&error];
+				if(lib) {
+					//NSLog(@"%@",[NSString stringWithFormat:@"%@/%@",[[NSBundle mainBundle] resourcePath],shaders[k]]);				
+					this->_library.push_back(lib);
+					if(error) return false;
+				}
+				else {
 					return false;
 				}
 			}
 			this->_isGetBytes = isGetBytes;
-						
-			if(this->setupShader()) return false;
+			if(this->setupShader()) return false;	
 			this->_isInit = this->setup();
 			return this->_isInit;
 		}
@@ -250,15 +192,15 @@ class MetalLayer {
 		}
 
 		void mode(unsigned int n) {
-			this->_mode = n;
+			this->_mode = n; 
 		}
 		
-		id<MTLTexture> drawableTexture() {
-			return this->_drawabletexture;
+		id<MTLTexture> drawableTexture() { 
+			return this->_drawabletexture; 
 		}
 		
-		void cleanup() {
-			this->_metalDrawable = nil;
+		void cleanup() { 
+			this->_metalDrawable = nil; 
 		}
 		
 		bool reloadShader(dispatch_data_t data, unsigned int index) {
@@ -273,7 +215,7 @@ class MetalLayer {
 			this->_frame = frame;
 		}
 		
-		id<MTLCommandBuffer> prepareCommandBuffer(int mode) {
+		id<MTLCommandBuffer> prepareCommandBuffer(long mode) {
 			if(!this->_metalDrawable) {
 				this->_metalDrawable = [this->_metalLayer nextDrawable];
 			}
@@ -281,7 +223,7 @@ class MetalLayer {
 				this->_renderPassDescriptor = nil;
 			}
 			else {
-				if(this->_renderPassDescriptor == nil) this->_renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+				if(this->_renderPassDescriptor==nil) this->_renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
 			}
 			if(this->_metalDrawable&&this->_renderPassDescriptor) {
 				return this->setupCommandBuffer(mode);
@@ -290,8 +232,11 @@ class MetalLayer {
 		}
 		
 		void update(void (^onComplete)(id<MTLCommandBuffer>)) {
-			int mode = this->_mode;
-			if(mode>=this->_library.size()) mode = (int)(this->_library.size()-1);
+			
+			if(this->_isInit==false) return; 
+						
+			unsigned int mode = this->_mode;
+			if(mode>=this->_library.size()) mode = this->_library.size()-1;
 			if(this->_renderPipelineState[mode]) {
 				id<MTLCommandBuffer> commandBuffer = this->prepareCommandBuffer(mode);
 				if(commandBuffer) {

@@ -100,8 +100,8 @@
 					[encoder setBuffer:this->_clip offset:0 atIndex:0];
 					MTLSize threadGroupSize = MTLSizeMake(8,8,1);
 					MTLSize threadGroups = MTLSizeMake(
-						std::ceil(this->_width/(double)threadGroupSize.width),
-						std::ceil(this->_height/(double)threadGroupSize.height),
+						ceil(this->_width/(double)threadGroupSize.width),
+						ceil(this->_height/(double)threadGroupSize.height),
 					1);
 					[encoder dispatchThreadgroups:threadGroups threadsPerThreadgroup:threadGroupSize];
 					[encoder endEncoding];
