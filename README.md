@@ -1,6 +1,5 @@
 ### MSL-Hydra-Synth-Player
 
-
 Play the [MSL-Hydra-Synth](https://github.com/mizt/MSL-Hydra-Synth)   
 (`MSL-Hydra-Synth` is Export [ojack](https://github.com/ojack) / [hydra-synth](https://github.com/ojack/hydra-synth) as Metal shader.)
 

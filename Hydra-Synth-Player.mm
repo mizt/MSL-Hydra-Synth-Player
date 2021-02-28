@@ -28,15 +28,19 @@ class App {
         dispatch_source_t timer;
         
         unsigned int *o0 = nullptr;
+        /*
         unsigned int *o1 = nullptr;
         unsigned int *o2 = nullptr;
         unsigned int *o3 = nullptr;
-        
+        */
+    
         unsigned int *s0 = nullptr;
+        /*
         unsigned int *s1 = nullptr;
         unsigned int *s2 = nullptr;
         unsigned int *s3 = nullptr;
-        
+        */
+    
         CGRect rect = CGRectMake(0,0,WIDTH,HEIGHT);
         
         dispatch_fd_t fd;
@@ -44,8 +48,6 @@ class App {
         NSString *path[2] = {
             @"MSL-Hydra-Synth/assets/s0.metallib",
             @"MSL-Hydra-Synth/assets/u0.json"
-            //[[[NSBundle mainBundle] URLForResource:@"o0" withExtension:@"metallib"] path],
-            //[[[NSBundle mainBundle] URLForResource:@"u0" withExtension:@"json"] path]
         };
         NSFileManager *fileManager = [NSFileManager defaultManager];
         
@@ -69,8 +71,8 @@ class App {
             this->o3 = new unsigned int[w*h];
             */
             
-            this->s0 = new unsigned int[w*h];
             /*
+            this->s0 = new unsigned int[w*h];
             this->s1 = new unsigned int[w*h];
             this->s2 = new unsigned int[w*h];
             this->s3 = new unsigned int[w*h];
@@ -88,7 +90,7 @@ class App {
                 ,false
             );
             
-#ifdef MENU_UI
+#ifdef USE_MENU_UI
             
             Menu::$()->on(^(id me,IMenuItem *item){
                 if(item) {
@@ -139,12 +141,13 @@ class App {
                     int width  = this->rect.size.width;
                     int height = this->rect.size.height;
                                                                 
-                    [this->layer->o0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
                     /*
+                    [this->layer->o0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
                     [this->layer->o1() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
                     [this->layer->o2() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
                     [this->layer->o3() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->o0 bytesPerRow:width<<2];
                     */
+                    
                     [this->layer->s0() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
                     /*
                     [this->layer->s1() replaceRegion:MTLRegionMake2D(0,0,width,height) mipmapLevel:0 withBytes:this->s0 bytesPerRow:width<<2];
@@ -178,14 +181,12 @@ class App {
                                 if(size[0]>0&&size[1]>0) {
                                     this->fd = open([this->path[0] UTF8String],O_RDONLY);
                                     dispatch_read(fd,size[0],dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^(dispatch_data_t d,int e) {
-                                        
                                         this->layer->reloadShader(0,d,this->path[1]);
                                         close(this->fd);
                                         dispatch_semaphore_signal(this->semaphore);
 
                                     });
                                     dispatch_semaphore_wait(this->semaphore,DISPATCH_TIME_FOREVER);
-                                                                        
                                 }
                             }
                         }
@@ -202,7 +203,6 @@ class App {
                                 this->o0[i*width+j] = (0xFF00FF00&argb)|((argb>>16)&0xFF)|((argb&0xFF)<<16);
                             }
                         }
-                        
                         this->layer->cleanup();
                     });
                     
@@ -222,14 +222,13 @@ class App {
                             [this->win makeKeyAndOrderFront:nil];
                         });
                     });
-                    
                 });
+                
                 if(this->timer) dispatch_resume(this->timer);
             }
         }
         
         ~App() {
-            
             
             if(this->timer) {
                 dispatch_source_cancel(this->timer);
@@ -237,7 +236,7 @@ class App {
             }
                 
             delete[] this->o0;
-            delete[] this->s0;
+            //delete[] this->s0;
                 
             [this->win setReleasedWhenClosed:NO];
             [this->win close];
@@ -287,7 +286,6 @@ class App {
         CGRect rect;
     
         dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-
     
     public:
         
@@ -352,7 +350,6 @@ class App {
         }
     
 };
-
 
 @interface AppDelegate:UIResponder<UIApplicationDelegate> {
     App *app;

@@ -1,7 +1,7 @@
 #import <objc/runtime.h>
 #import <objc/message.h>
 
-#define MENU_UI
+#define USE_MENU_UI
 
 @class RadioButtonMenuItem;
 @interface NSButtonView : NSView @end @implementation NSButtonView @end
